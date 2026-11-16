@@ -1,43 +1,91 @@
 import streamlit as st
 from config.conexion import obtener_conexion
+import hashlib
 
 st.set_page_config(
     page_title="Servi-Diagnóstico",
     page_icon="🧪",
-    layout="wide"
+    layout="centered"
 )
 
-st.title("Servi-Diagnóstico")
-st.subheader("Sistema de Gestión de Información")
-
-st.write("Bienvenido al sistema del laboratorio clínico.")
+# Título del sistema
+st.title("SERVI-DIAGNÓSTICO")
+st.subheader("Sistema de Gestión de la Información")
+st.write("Bienvenido al sistema del laboratorio clínico")
 
 st.divider()
 
-st.header("Prueba de conexión a la base de datos")
+# Formulario de inicio de sesión
+st.subheader("Iniciar sesión")
 
-conexion = obtener_conexion()
+with st.form("formulario_login"):
+    usuario = st.text_input("Usuario")
+    contrasena = st.text_input("Contraseña", type="password")
+    ingresar = st.form_submit_button("Ingresar")
 
-if conexion is not None:
-    try:
-        if conexion.is_connected():
-            st.success("¡Conexión exitosa con Clever Cloud!")
-            cursor = conexion.cursor()
-            cursor.execute("SELECT DATABASE()")
-            base_datos = cursor.fetchone()
+if ingresar:
 
-            st.write("Base de datos conectada:", base_datos[0])
+    if not usuario or not contrasena:
+        st.warning("Por favor, ingrese usuario y contraseña.")
+
+    else:
+        try:
+            conexion = obtener_conexion()
+            cursor = conexion.cursor(dictionary=True)
+
+            contrasena_hash = hashlib.sha256(
+                contrasena.encode()
+            ).hexdigest()
+
+            consulta = """
+                SELECT
+                    U.ID_User,
+                    U.Nombre,
+                    U.Apellido,
+                    U.Usuario,
+                    R.Nombre AS Rol
+                FROM Usuario_Sistema U
+                INNER JOIN Rol R
+                    ON U.ID_Rol = R.ID_Rol
+                WHERE U.Usuario = %s
+                AND U.Contrasena = %s
+                AND U.Estado = 'Activo'
+            """
+
+            cursor.execute(
+                consulta,
+                (usuario, contrasena_hash)
+            )
+
+            resultado = cursor.fetchone()
+
+            if resultado:
+                st.session_state["autenticado"] = True
+                st.session_state["usuario"] = resultado
+                st.success("¡Inicio de sesión exitoso!")
+                st.rerun()
+
+            else:
+                st.error("Usuario o contraseña incorrectos.")
 
             cursor.close()
+            conexion.close()
 
-        else:
-            st.error("No se pudo establecer la conexión.")
+        except Exception as e:
+            st.error("Error al conectar con la base de datos.")
+            st.error(str(e))
 
-    except Exception as error:
-        st.error(f"Error durante la prueba: {error}")
+# Pantalla después de iniciar sesión
+if st.session_state.get("autenticado", False):
 
-    finally:
-        conexion.close()
+    datos = st.session_state["usuario"]
 
-else:
-    st.error("No fue posible conectar con la base de datos.")
+    st.success(
+        f"Bienvenido, {datos['Nombre']} {datos['Apellido']}"
+    )
+
+    st.write(f"Rol: {datos['Rol']}")
+
+    if st.button("Cerrar sesión"):
+        st.session_state.clear()
+        st.rerun()
