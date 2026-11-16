@@ -257,13 +257,13 @@ else:
                     "- Usuarios y roles"
                 )
 
-        elif seleccion == "Pacientes":
+elif seleccion == "Pacientes":
 
             mostrar_pacientes()
 
-       elif seleccion == "Citas":
+        elif seleccion == "Citas":
 
-    mostrar_citas()
+            mostrar_citas()
 
         elif seleccion == "Boletas de examen":
 
