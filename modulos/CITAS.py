@@ -3,121 +3,128 @@ from datetime import date
 from config.conexion import obtener_conexion
 
 
-def mostrar_pacientes():
+def mostrar_citas():
 
-    st.title("👥 Gestión de pacientes")
-    st.write("Registro y consulta de pacientes de Servi-Diagnóstico.")
+    st.title("📅 Gestión de citas")
+    st.write("Registro y consulta de citas de Servi-Diagnóstico.")
 
     pestaña_registro, pestaña_consulta = st.tabs(
-        ["Registrar paciente", "Consultar pacientes"]
+        ["Registrar cita", "Consultar citas"]
     )
 
     with pestaña_registro:
 
-        st.subheader("Registrar nuevo paciente")
+        st.subheader("Registrar nueva cita")
 
-        with st.form("formulario_paciente"):
+        conexion = None
+        cursor = None
 
-            nombre = st.text_input("Nombre completo *")
+        try:
 
-            telefono = st.text_input("Teléfono *")
+            conexion = obtener_conexion()
+            cursor = conexion.cursor(dictionary=True)
 
-            fecha_nacimiento = st.date_input(
-                "Fecha de nacimiento",
-                min_value=date(1900, 1, 1),
-                max_value=date.today(),
-                value=date(2000, 1, 1),
-                format="DD/MM/YYYY"
-            )
+            cursor.execute("""
+                SELECT ID_Paciente, Nombre_Completo
+                FROM Paciente
+                ORDER BY Nombre_Completo
+            """)
 
-            genero = st.selectbox(
-                "Género",
-                ["No especificado", "Masculino", "Femenino"]
-            )
+            pacientes = cursor.fetchall()
 
-            dui = st.text_input("DUI (opcional)")
-            correo = st.text_input("Correo electrónico")
-            direccion = st.text_area("Dirección")
+            cursor.execute("""
+                SELECT id_medico, nombre, apellido, Tipo
+                FROM MEDICO
+                ORDER BY nombre
+            """)
 
-            telefono_emergencia = st.text_input(
-                "Teléfono de emergencia"
-            )
+            medicos = cursor.fetchall()
 
-            guardar = st.form_submit_button(
-                "Guardar paciente",
-                use_container_width=True
-            )
+            if not pacientes:
+                st.warning("Primero debes registrar al menos un paciente.")
 
-        if guardar:
-
-            if not nombre.strip() or not telefono.strip():
-
-                st.warning(
-                    "El nombre y el teléfono son obligatorios."
-                )
+            elif not medicos:
+                st.warning("Primero debes registrar al menos un médico.")
 
             else:
 
-                conexion = None
-                cursor = None
+                with st.form("formulario_cita"):
 
-                try:
+                    paciente_seleccionado = st.selectbox(
+                        "Seleccionar paciente",
+                        pacientes,
+                        format_func=lambda p: p["Nombre_Completo"]
+                    )
 
-                    conexion = obtener_conexion()
-                    cursor = conexion.cursor()
-
-                    consulta = """
-                        INSERT INTO Paciente (
-                            Nombre_Completo,
-                            Telefono,
-                            Fecha_Nacimiento,
-                            Genero,
-                            DUI,
-                            Correo,
-                            Direccion,
-                            Telefono_Emergencia
+                    medico_seleccionado = st.selectbox(
+                        "Seleccionar médico",
+                        medicos,
+                        format_func=lambda m: (
+                            f'{m["nombre"]} {m["apellido"]} '
+                            f'({m["Tipo"]})'
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """
-
-                    valores = (
-                        nombre.strip(),
-                        telefono.strip(),
-                        fecha_nacimiento,
-                        genero,
-                        dui.strip() or None,
-                        correo.strip() or None,
-                        direccion.strip() or None,
-                        telefono_emergencia.strip() or None
                     )
 
-                    cursor.execute(consulta, valores)
-                    conexion.commit()
+                    concepto = st.text_area("Concepto de la cita *")
 
-                    st.success(
-                        "¡Paciente registrado correctamente!"
+                    fecha_cita = st.date_input(
+                        "Fecha de la cita",
+                        min_value=date.today(),
+                        value=date.today(),
+                        format="DD/MM/YYYY"
                     )
 
-                except Exception as error:
-
-                    st.error(
-                        "No se pudo registrar el paciente. "
-                        "Verificá que el DUI no esté registrado anteriormente."
+                    guardar = st.form_submit_button(
+                        "Guardar cita",
+                        use_container_width=True
                     )
 
-                    st.error(str(error))
+                if guardar:
 
-                finally:
+                    if not concepto.strip():
 
-                    if cursor:
-                        cursor.close()
+                        st.warning("Debes ingresar el concepto de la cita.")
 
-                    if conexion:
-                        conexion.close()
+                    else:
+
+                        consulta = """
+                            INSERT INTO CITA (
+                                idpaciente,
+                                id_medico,
+                                concepto,
+                                fechacita
+                            )
+                            VALUES (%s, %s, %s, %s)
+                        """
+
+                        valores = (
+                            paciente_seleccionado["ID_Paciente"],
+                            medico_seleccionado["id_medico"],
+                            concepto.strip(),
+                            fecha_cita
+                        )
+
+                        cursor.execute(consulta, valores)
+                        conexion.commit()
+
+                        st.success("¡Cita registrada correctamente!")
+
+        except Exception as error:
+
+            st.error("No se pudo procesar la cita.")
+            st.error(str(error))
+
+        finally:
+
+            if cursor:
+                cursor.close()
+
+            if conexion:
+                conexion.close()
 
     with pestaña_consulta:
 
-        st.subheader("Pacientes registrados")
+        st.subheader("Citas registradas")
 
         conexion = None
         cursor = None
@@ -129,36 +136,37 @@ def mostrar_pacientes():
 
             cursor.execute("""
                 SELECT
-                    ID_Paciente,
-                    Nombre_Completo,
-                    Telefono,
-                    Fecha_Nacimiento,
-                    Genero,
-                    DUI,
-                    Correo
-                FROM Paciente
-                ORDER BY ID_Paciente DESC
+                    C.ID_Cita,
+                    P.Nombre_Completo AS Paciente,
+                    CONCAT(M.nombre, ' ', M.apellido) AS Medico,
+                    M.Tipo AS Tipo_Medico,
+                    C.concepto,
+                    C.fechacita
+                FROM CITA C
+                INNER JOIN Paciente P
+                    ON C.idpaciente = P.ID_Paciente
+                INNER JOIN MEDICO M
+                    ON C.id_medico = M.id_medico
+                ORDER BY C.fechacita DESC
             """)
 
-            pacientes = cursor.fetchall()
+            citas = cursor.fetchall()
 
-            if pacientes:
+            if citas:
 
                 st.dataframe(
-                    pacientes,
+                    citas,
                     use_container_width=True,
                     hide_index=True
                 )
 
             else:
 
-                st.info(
-                    "Todavía no hay pacientes registrados."
-                )
+                st.info("Todavía no hay citas registradas.")
 
         except Exception as error:
 
-            st.error("No se pudieron consultar los pacientes.")
+            st.error("No se pudieron consultar las citas.")
             st.error(str(error))
 
         finally:
