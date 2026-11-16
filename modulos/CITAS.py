@@ -27,6 +27,11 @@ def mostrar_citas():
 
             conexion = obtener_conexion()
             cursor = conexion.cursor(dictionary=True)
+            cursor.execute("SELECT DATABASE() AS base")
+st.write("Base de datos:", cursor.fetchone())
+
+cursor.execute("SHOW TABLES LIKE 'Cita'")
+st.write("Tabla Cita:", cursor.fetchall())
 
             # CONSULTAR PACIENTES
 
