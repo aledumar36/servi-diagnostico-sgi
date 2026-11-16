@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date
+from datetime import date, datetime
 from config.conexion import obtener_conexion
 
 
@@ -67,12 +67,17 @@ def mostrar_citas():
 
                     concepto = st.text_area("Concepto de la cita *")
 
-                    fecha_cita = st.date_input(
-                        "Fecha de la cita",
-                        min_value=date.today(),
-                        value=date.today(),
-                        format="DD/MM/YYYY"
-                    )
+                 fecha_cita = st.date_input(
+    "Fecha de la cita",
+    min_value=date.today(),
+    value=date.today(),
+    format="DD/MM/YYYY"
+)
+
+hora_cita = st.time_input(
+    "Hora de la cita",
+    value=st.time(8, 0)
+)
 
                     guardar = st.form_submit_button(
                         "Guardar cita",
@@ -97,12 +102,14 @@ def mostrar_citas():
                             VALUES (%s, %s, %s, %s)
                         """
 
-                        valores = (
-                            paciente_seleccionado["ID_Paciente"],
-                            medico_seleccionado["id_medico"],
-                            concepto.strip(),
-                            fecha_cita
-                        )
+                        from datetime import datetime
+
+valores = (
+    paciente_seleccionado["ID_Paciente"],
+    medico_seleccionado["id_medico"],
+    concepto.strip(),
+    datetime.combine(fecha_cita, hora_cita)
+)
 
                         cursor.execute(consulta, valores)
                         conexion.commit()
