@@ -3,6 +3,7 @@ import hashlib
 from config.conexion import obtener_conexion
 from modulos.PACIENTES import mostrar_pacientes
 from modulos.CITAS import mostrar_citas
+from modulos.BOLETAS import mostrar_boletas
 
 st.set_page_config(
     page_title="Servi-Diagnóstico",
@@ -230,10 +231,9 @@ else:
 
             mostrar_citas()
 
-        elif seleccion == "Boletas de examen":
-
-            st.title("Boletas de examen")
-            st.write("Registro de solicitudes de exámenes.")
+       elif seleccion == "Boletas de examen":
+   
+            mostrar_boletas()
 
         elif seleccion == "Registrar exámenes":
 
