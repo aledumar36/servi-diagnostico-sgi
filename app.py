@@ -10,6 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
+
 # ==========================================
 # FUNCION: INICIO DE SESION
 # ==========================================
@@ -175,47 +176,11 @@ else:
             st.rerun()
 
         # ----------------------------------
-        # VISTA DE INICIO
+        # ENCABEZADO
         # ----------------------------------
 
         st.title("Panel principal")
         st.write(f"Bienvenido, {nombre_completo}")
-
-        if seleccion == "Inicio":
-
-            st.subheader("Resumen del laboratorio")
-
-            st.write(
-                "Desde este panel puede acceder a los "
-                "diferentes módulos de Servi-Diagnóstico."
-            )
-
-            st.info(
-                "Seleccione una opción del menú lateral "
-                "para comenzar."
-            )
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.markdown("### 🧪 Gestión de laboratorio")
-                st.write(
-                    "- Pacientes\n"
-                    "- Citas\n"
-                    "- Boletas de examen\n"
-                    "- Registro de exámenes\n"
-                    "- Validación de resultados\n"
-                    "- Consulta de resultados"
-                )
-
-            with col2:
-                st.markdown("### 📦 Administración")
-                st.write(
-                    "- Inventario\n"
-                    "- Compras y proveedores\n"
-                    "- Reseñas\n"
-                    "- Usuarios y roles"
-                )
 
         # ----------------------------------
         # VISTAS DE LOS MODULOS
@@ -257,7 +222,7 @@ else:
                     "- Usuarios y roles"
                 )
 
-elif seleccion == "Pacientes":
+        elif seleccion == "Pacientes":
 
             mostrar_pacientes()
 
@@ -305,10 +270,16 @@ elif seleccion == "Pacientes":
             st.title("Gestión de usuarios y roles")
             st.write("Administración de cuentas y permisos.")
 
-      if seleccion not in ["Inicio", "Pacientes", "Citas"]:
-    st.divider()
-    st.info(
-        "Esta sección está creada. "
-        "El siguiente paso será desarrollar sus "
-        "formularios y conectarlos con la base de datos."
-    )
+        # ----------------------------------
+        # MENSAJE PARA MODULOS PENDIENTES
+        # ----------------------------------
+
+        if seleccion not in ["Inicio", "Pacientes", "Citas"]:
+
+            st.divider()
+
+            st.info(
+                "Esta sección está creada. "
+                "El siguiente paso será desarrollar sus "
+                "formularios y conectarlos con la base de datos."
+            )
