@@ -120,7 +120,7 @@ def mostrar_citas():
                     else:
 
                         consulta = """
-                            INSERT INTO CITA (
+                            INSERT INTO Cita (
                                 ID_Paciente,
                                 ID_Medico,
                                 Concepto,
@@ -183,7 +183,7 @@ def mostrar_citas():
                     M.Tipo AS Tipo_Medico,
                     C.Concepto,
                     C.Fecha_Cita
-                FROM CITA C
+                FROM Cita C
                 INNER JOIN Paciente P
                     ON C.ID_Paciente = P.ID_Paciente
                 INNER JOIN Medico M
