@@ -48,7 +48,7 @@ def mostrar_citas():
                     nombre,
                     apellido,
                     Tipo
-                FROM MEDICO
+                FROM Medico
                 ORDER BY nombre
             """)
 
@@ -186,7 +186,7 @@ def mostrar_citas():
                 FROM CITA C
                 INNER JOIN Paciente P
                     ON C.idpaciente = P.ID_Paciente
-                INNER JOIN MEDICO M
+                INNER JOIN Medico M
                     ON C.id_medico = M.id_medico
                 ORDER BY C.fechacita DESC
             """)
