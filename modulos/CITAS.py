@@ -121,10 +121,10 @@ def mostrar_citas():
 
                         consulta = """
                             INSERT INTO CITA (
-                                idpaciente,
-                                id_medico,
-                                concepto,
-                                fechacita
+                                ID_Paciente,
+                                ID_Medico,
+                                Concepto,
+                                Fecha_Cita
                             )
                             VALUES (%s, %s, %s, %s)
                         """
@@ -181,14 +181,14 @@ def mostrar_citas():
                     P.Nombre_Completo AS Paciente,
                     CONCAT(M.nombre, ' ', M.apellido) AS Medico,
                     M.Tipo AS Tipo_Medico,
-                    C.concepto,
-                    C.fechacita
+                    C.Concepto,
+                    C.Fecha_Cita
                 FROM CITA C
                 INNER JOIN Paciente P
-                    ON C.idpaciente = P.ID_Paciente
+                    ON C.ID_Paciente = P.ID_Paciente
                 INNER JOIN Medico M
-                    ON C.id_medico = M.id_medico
-                ORDER BY C.fechacita DESC
+                    ON C.ID_Medico = M.id_medico
+                ORDER BY C.Fecha_Cita DESC
             """)
 
             citas = cursor.fetchall()
