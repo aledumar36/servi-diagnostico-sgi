@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import date
 from config.conexion import obtener_conexion
 
 
@@ -19,10 +20,9 @@ def mostrar_pacientes():
 
             nombre = st.text_input("Nombre completo *")
             telefono = st.text_input("Teléfono *")
-            fecha_nacimiento = st.date_input(
-                "Fecha de nacimiento",
-                format="DD/MM/YYYY"
-            )
+            import streamlit as st
+from datetime import date
+from config.conexion import obtener_conexion
 
             genero = st.selectbox(
                 "Género",
