@@ -12,6 +12,10 @@ def mostrar_citas():
         ["Registrar cita", "Consultar citas"]
     )
 
+    # ======================================
+    # REGISTRAR CITAS
+    # ======================================
+
     with pestaña_registro:
 
         st.subheader("Registrar nueva cita")
@@ -24,16 +28,26 @@ def mostrar_citas():
             conexion = obtener_conexion()
             cursor = conexion.cursor(dictionary=True)
 
+            # CONSULTAR PACIENTES
+
             cursor.execute("""
-                SELECT ID_Paciente, Nombre_Completo
+                SELECT
+                    ID_Paciente,
+                    Nombre_Completo
                 FROM Paciente
                 ORDER BY Nombre_Completo
             """)
 
             pacientes = cursor.fetchall()
 
+            # CONSULTAR MEDICOS
+
             cursor.execute("""
-                SELECT id_medico, nombre, apellido, Tipo
+                SELECT
+                    id_medico,
+                    nombre,
+                    apellido,
+                    Tipo
                 FROM MEDICO
                 ORDER BY nombre
             """)
@@ -41,10 +55,16 @@ def mostrar_citas():
             medicos = cursor.fetchall()
 
             if not pacientes:
-                st.warning("Primero debes registrar al menos un paciente.")
+
+                st.warning(
+                    "Primero debes registrar al menos un paciente."
+                )
 
             elif not medicos:
-                st.warning("Primero debes registrar al menos un médico.")
+
+                st.warning(
+                    "Primero debes registrar al menos un médico."
+                )
 
             else:
 
@@ -65,19 +85,24 @@ def mostrar_citas():
                         )
                     )
 
-                    concepto = st.text_area("Concepto de la cita *")
+                    concepto = st.text_area(
+                        "Concepto de la cita *"
+                    )
 
-                 fecha_cita = st.date_input(
-    "Fecha de la cita",
-    min_value=date.today(),
-    value=date.today(),
-    format="DD/MM/YYYY"
-)
+                    fecha_cita = st.date_input(
+                        "Fecha de la cita",
+                        min_value=date.today(),
+                        value=date.today(),
+                        format="DD/MM/YYYY"
+                    )
 
-hora_cita = st.time_input(
-    "Hora de la cita",
-    value=st.time(8, 0)
-)
+                    hora_cita = st.time_input(
+                        "Hora de la cita",
+                        value=datetime.strptime(
+                            "08:00",
+                            "%H:%M"
+                        ).time()
+                    )
 
                     guardar = st.form_submit_button(
                         "Guardar cita",
@@ -88,7 +113,9 @@ hora_cita = st.time_input(
 
                     if not concepto.strip():
 
-                        st.warning("Debes ingresar el concepto de la cita.")
+                        st.warning(
+                            "Debes ingresar el concepto de la cita."
+                        )
 
                     else:
 
@@ -102,19 +129,22 @@ hora_cita = st.time_input(
                             VALUES (%s, %s, %s, %s)
                         """
 
-                        from datetime import datetime
-
-valores = (
-    paciente_seleccionado["ID_Paciente"],
-    medico_seleccionado["id_medico"],
-    concepto.strip(),
-    datetime.combine(fecha_cita, hora_cita)
-)
+                        valores = (
+                            paciente_seleccionado["ID_Paciente"],
+                            medico_seleccionado["id_medico"],
+                            concepto.strip(),
+                            datetime.combine(
+                                fecha_cita,
+                                hora_cita
+                            )
+                        )
 
                         cursor.execute(consulta, valores)
                         conexion.commit()
 
-                        st.success("¡Cita registrada correctamente!")
+                        st.success(
+                            "¡Cita registrada correctamente!"
+                        )
 
         except Exception as error:
 
@@ -128,6 +158,10 @@ valores = (
 
             if conexion:
                 conexion.close()
+
+    # ======================================
+    # CONSULTAR CITAS
+    # ======================================
 
     with pestaña_consulta:
 
@@ -169,7 +203,9 @@ valores = (
 
             else:
 
-                st.info("Todavía no hay citas registradas.")
+                st.info(
+                    "Todavía no hay citas registradas."
+                )
 
         except Exception as error:
 
