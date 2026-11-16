@@ -19,10 +19,16 @@ def mostrar_pacientes():
         with st.form("formulario_paciente"):
 
             nombre = st.text_input("Nombre completo *")
+
             telefono = st.text_input("Teléfono *")
-            import streamlit as st
-from datetime import date
-from config.conexion import obtener_conexion
+
+            fecha_nacimiento = st.date_input(
+                "Fecha de nacimiento",
+                min_value=date(1900, 1, 1),
+                max_value=date.today(),
+                value=date(2000, 1, 1),
+                format="DD/MM/YYYY"
+            )
 
             genero = st.selectbox(
                 "Género",
@@ -32,6 +38,7 @@ from config.conexion import obtener_conexion
             dui = st.text_input("DUI (opcional)")
             correo = st.text_input("Correo electrónico")
             direccion = st.text_area("Dirección")
+
             telefono_emergencia = st.text_input(
                 "Teléfono de emergencia"
             )
@@ -44,7 +51,10 @@ from config.conexion import obtener_conexion
         if guardar:
 
             if not nombre.strip() or not telefono.strip():
-                st.warning("El nombre y el teléfono son obligatorios.")
+
+                st.warning(
+                    "El nombre y el teléfono son obligatorios."
+                )
 
             else:
 
@@ -52,6 +62,7 @@ from config.conexion import obtener_conexion
                 cursor = None
 
                 try:
+
                     conexion = obtener_conexion()
                     cursor = conexion.cursor()
 
@@ -83,18 +94,24 @@ from config.conexion import obtener_conexion
                     cursor.execute(consulta, valores)
                     conexion.commit()
 
-                    st.success("¡Paciente registrado correctamente!")
+                    st.success(
+                        "¡Paciente registrado correctamente!"
+                    )
 
                 except Exception as error:
+
                     st.error(
                         "No se pudo registrar el paciente. "
                         "Verificá que el DUI no esté registrado anteriormente."
                     )
+
                     st.error(str(error))
 
                 finally:
+
                     if cursor:
                         cursor.close()
+
                     if conexion:
                         conexion.close()
 
@@ -106,6 +123,7 @@ from config.conexion import obtener_conexion
         cursor = None
 
         try:
+
             conexion = obtener_conexion()
             cursor = conexion.cursor(dictionary=True)
 
@@ -125,20 +143,28 @@ from config.conexion import obtener_conexion
             pacientes = cursor.fetchall()
 
             if pacientes:
+
                 st.dataframe(
                     pacientes,
                     use_container_width=True,
                     hide_index=True
                 )
+
             else:
-                st.info("Todavía no hay pacientes registrados.")
+
+                st.info(
+                    "Todavía no hay pacientes registrados."
+                )
 
         except Exception as error:
+
             st.error("No se pudieron consultar los pacientes.")
             st.error(str(error))
 
         finally:
+
             if cursor:
                 cursor.close()
+
             if conexion:
                 conexion.close()
