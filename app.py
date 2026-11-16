@@ -231,8 +231,8 @@ else:
 
             mostrar_citas()
 
-       elif seleccion == "Boletas de examen":
-   
+        elif seleccion == "Boletas de examen":
+
             mostrar_boletas()
 
         elif seleccion == "Registrar exámenes":
@@ -274,7 +274,12 @@ else:
         # MENSAJE PARA MODULOS PENDIENTES
         # ----------------------------------
 
-        if seleccion not in ["Inicio", "Pacientes", "Citas"]:
+        if seleccion not in [
+            "Inicio",
+            "Pacientes",
+            "Citas",
+            "Boletas de examen"
+        ]:
 
             st.divider()
 
