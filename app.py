@@ -2,6 +2,7 @@ import streamlit as st
 import hashlib
 from config.conexion import obtener_conexion
 from modulos.PACIENTES import mostrar_pacientes
+from modulos.CITAS import mostrar_citas
 
 st.set_page_config(
     page_title="Servi-Diagnóstico",
@@ -260,10 +261,9 @@ else:
 
             mostrar_pacientes()
 
-        elif seleccion == "Citas":
+       elif seleccion == "Citas":
 
-            st.title("Gestión de citas")
-            st.write("Administración de citas del laboratorio.")
+    mostrar_citas()
 
         elif seleccion == "Boletas de examen":
 
@@ -305,10 +305,10 @@ else:
             st.title("Gestión de usuarios y roles")
             st.write("Administración de cuentas y permisos.")
 
-        if seleccion not in ["Inicio", "Pacientes"]:
-            st.divider()
-            st.info(
-                "Esta sección está creada. "
-                "El siguiente paso será desarrollar sus "
-                "formularios y conectarlos con la base de datos."
-            )
+      if seleccion not in ["Inicio", "Pacientes", "Citas"]:
+    st.divider()
+    st.info(
+        "Esta sección está creada. "
+        "El siguiente paso será desarrollar sus "
+        "formularios y conectarlos con la base de datos."
+    )
