@@ -220,9 +220,45 @@ else:
         # VISTAS DE LOS MODULOS
         # ----------------------------------
 
-       elif seleccion == "Pacientes":
+        if seleccion == "Inicio":
 
-    mostrar_pacientes()
+            st.subheader("Resumen del laboratorio")
+
+            st.write(
+                "Desde este panel puede acceder a los "
+                "diferentes módulos de Servi-Diagnóstico."
+            )
+
+            st.info(
+                "Seleccione una opción del menú lateral "
+                "para comenzar."
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("### 🧪 Gestión de laboratorio")
+                st.write(
+                    "- Pacientes\n"
+                    "- Citas\n"
+                    "- Boletas de examen\n"
+                    "- Registro de exámenes\n"
+                    "- Validación de resultados\n"
+                    "- Consulta de resultados"
+                )
+
+            with col2:
+                st.markdown("### 📦 Administración")
+                st.write(
+                    "- Inventario\n"
+                    "- Compras y proveedores\n"
+                    "- Reseñas\n"
+                    "- Usuarios y roles"
+                )
+
+        elif seleccion == "Pacientes":
+
+            mostrar_pacientes()
 
         elif seleccion == "Citas":
 
@@ -269,26 +305,10 @@ else:
             st.title("Gestión de usuarios y roles")
             st.write("Administración de cuentas y permisos.")
 
-        # Aviso de que las pantallas aún están en construcción
-      if seleccion not in ["Inicio", "Pacientes"]:
-    st.divider()
-    st.info(
-        "Esta sección está creada. "
-        "El siguiente paso será desarrollar sus "
-        "formularios y conectarlos con la base de datos."
-    )
-
-    else:
-
-        st.title("SERVI-DIAGNÓSTICO")
-        st.success(f"Bienvenido, {nombre_completo}")
-        st.write(f"Rol: {rol}")
-
-        st.info(
-            "El menú correspondiente a este rol "
-            "se configurará en la siguiente etapa."
-        )
-
-        if st.button("Cerrar sesión"):
-            st.session_state.clear()
-            st.rerun()
+        if seleccion not in ["Inicio", "Pacientes"]:
+            st.divider()
+            st.info(
+                "Esta sección está creada. "
+                "El siguiente paso será desarrollar sus "
+                "formularios y conectarlos con la base de datos."
+            )
