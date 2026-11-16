@@ -1,57 +1,43 @@
 import streamlit as st
-from modulos.login import login
-from modulos.VENTAS import mostrar_venta
-from modulos.examenes import mostrar_examenes
+from config.conexion import obtener_conexion
 
-# Inicializar variables de sesión
-if "sesion_iniciada" not in st.session_state:
-    st.session_state["sesion_iniciada"] = False
+st.set_page_config(
+    page_title="Servi-Diagnóstico",
+    page_icon="🧪",
+    layout="wide"
+)
 
-if "usuario" not in st.session_state:
-    st.session_state["usuario"] = ""
+st.title("Servi-Diagnóstico")
+st.subheader("Sistema de Gestión de Información")
 
-# Comprobar si el usuario inició sesión
-if st.session_state["sesion_iniciada"]:
+st.write("Bienvenido al sistema del laboratorio clínico.")
 
-    st.sidebar.title("Menú")
+st.divider()
 
-    st.sidebar.write(
-        f"Usuario: {st.session_state['usuario']}"
-    )
+st.header("Prueba de conexión a la base de datos")
 
-    opciones = [
-        "Ventas",
-        "Exámenes",
-        "Información"
-    ]
+conexion = obtener_conexion()
 
-    seleccion = st.sidebar.selectbox(
-        "Seleccione una opción",
-        opciones
-    )
+if conexion is not None:
+    try:
+        if conexion.is_connected():
+            st.success("¡Conexión exitosa con Clever Cloud!")
+            cursor = conexion.cursor()
+            cursor.execute("SELECT DATABASE()")
+            base_datos = cursor.fetchone()
 
-    # Mostrar módulo de ventas
-    if seleccion == "Ventas":
-        mostrar_venta()
+            st.write("Base de datos conectada:", base_datos[0])
 
-    # Mostrar módulo de exámenes
-    elif seleccion == "Exámenes":
-        mostrar_examenes()
+            cursor.close()
 
-    # Mostrar módulo de información
-    elif seleccion == "Información":
-        st.header("Información del sistema")
-        st.write(
-            "Aplicación desarrollada durante "
-            "el Laboratorio de SGI."
-        )
+        else:
+            st.error("No se pudo establecer la conexión.")
 
-    # Cerrar sesión
-    if st.sidebar.button("Cerrar sesión"):
-        st.session_state["sesion_iniciada"] = False
-        st.session_state["usuario"] = ""
-        st.rerun()
+    except Exception as error:
+        st.error(f"Error durante la prueba: {error}")
+
+    finally:
+        conexion.close()
 
 else:
-    # Si no hay sesión iniciada, mostrar login
-    login()
+    st.error("No fue posible conectar con la base de datos.")
