@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import uuid
+
 from config.conexion import obtener_conexion
 
 
@@ -20,7 +21,9 @@ def consultar_datos(consulta, parametros=()):
 def mostrar_boletas():
 
     st.title("📋 Gestión de boletas de examen")
-    st.write("Registro y consulta de boletas de Servi-Diagnóstico.")
+    st.write(
+        "Registro y consulta de boletas de Servi-Diagnóstico."
+    )
 
     pestaña_registro, pestaña_consulta = st.tabs(
         ["📝 Registrar boleta", "🔎 Consultar boletas"]
@@ -34,28 +37,35 @@ def mostrar_boletas():
 
         st.subheader("Registro de nueva boleta")
 
-        pacientes = consultar_datos("""
-            SELECT ID_Paciente, Nombre_Completo
-            FROM Paciente
-            ORDER BY Nombre_Completo
-        """)
+        try:
+            pacientes = consultar_datos("""
+                SELECT ID_Paciente, Nombre_Completo
+                FROM Paciente
+                ORDER BY Nombre_Completo
+            """)
 
-        medicos = consultar_datos("""
-            SELECT ID_Medico, Nombre, Apellido
-            FROM Medico
-            ORDER BY Nombre
-        """)
+            medicos = consultar_datos("""
+                SELECT ID_Medico, Nombre, Apellido
+                FROM Medico
+                ORDER BY Nombre
+            """)
 
-        tipos_examen = consultar_datos("""
-            SELECT ID_TipoExamen, Nombre, Area
-            FROM Tipo_Examen
-            ORDER BY Nombre
-        """)
+            tipos_examen = consultar_datos("""
+                SELECT ID_TipoExamen, Nombre, Area
+                FROM Tipo_Examen
+                ORDER BY Nombre
+            """)
+
+        except Exception as error:
+            st.error(f"No se pudieron cargar los datos: {error}")
+            return
 
         if not pacientes:
             st.warning("No hay pacientes registrados.")
+
         elif not tipos_examen:
             st.warning("No hay tipos de examen registrados.")
+
         else:
 
             opciones_pacientes = {
@@ -69,9 +79,12 @@ def mostrar_boletas():
                 list(opciones_pacientes.keys())
             )
 
-            id_paciente = opciones_pacientes[paciente_seleccionado]
+            id_paciente = opciones_pacientes[
+                paciente_seleccionado
+            ]
 
-            # Buscar citas correspondientes al paciente
+            # Citas del paciente seleccionado
+
             citas = consultar_datos("""
                 SELECT ID_Cita, Fecha_Cita, Concepto
                 FROM Cita
@@ -79,38 +92,57 @@ def mostrar_boletas():
                 ORDER BY Fecha_Cita DESC
             """, (id_paciente,))
 
+            # Opciones de médicos
+
             opciones_medicos = {
                 "Sin médico referente": None
             }
 
             for medico in medicos:
+
                 etiqueta = (
-                    f"{medico['Nombre']} {medico['Apellido']} "
+                    f"{medico['Nombre']} "
+                    f"{medico['Apellido']} "
                     f"(ID: {medico['ID_Medico']})"
                 )
-                opciones_medicos[etiqueta] = medico["ID_Medico"]
+
+                opciones_medicos[etiqueta] = (
+                    medico["ID_Medico"]
+                )
+
+            # Opciones de citas
 
             opciones_citas = {
                 "Sin cita asociada": None
             }
 
             for cita in citas:
+
                 etiqueta = (
                     f"Cita #{cita['ID_Cita']} - "
                     f"{cita['Fecha_Cita']} - "
                     f"{cita['Concepto'] or 'Sin concepto'}"
                 )
+
                 opciones_citas[etiqueta] = cita["ID_Cita"]
+
+            # Opciones de exámenes
 
             opciones_examenes = {}
 
             for examen in tipos_examen:
+
                 etiqueta = (
                     f"{examen['Nombre']} - "
                     f"{examen['Area'] or 'Sin área'} "
                     f"(ID: {examen['ID_TipoExamen']})"
                 )
-                opciones_examenes[etiqueta] = examen["ID_TipoExamen"]
+
+                opciones_examenes[etiqueta] = (
+                    examen["ID_TipoExamen"]
+                )
+
+            # Formulario
 
             with st.form("formulario_boleta"):
 
@@ -133,10 +165,15 @@ def mostrar_boletas():
                     list(opciones_examenes.keys())
                 )
 
+                st.markdown("### 📎 Archivo de la boleta")
+
                 archivo_boleta = st.file_uploader(
                     "Adjuntar boleta (opcional)",
                     type=["pdf", "jpg", "jpeg", "png"],
-                     help="Podés adjuntar un PDF o una fotografía de la boleta."
+                    help=(
+                        "Podés adjuntar un PDF o una fotografía "
+                        "en JPG o PNG. No es obligatorio."
+                    )
                 )
 
                 guardar = st.form_submit_button(
@@ -144,47 +181,78 @@ def mostrar_boletas():
                     use_container_width=True
                 )
 
+            # Guardar información
+
             if guardar:
 
                 usuario = st.session_state.get("usuario", {})
                 id_user = usuario.get("ID_User")
 
                 if not id_user:
+
                     st.error(
-                        "No se pudo identificar al usuario que registra "
-                        "la boleta. Cerrá sesión e ingresá nuevamente."
+                        "No se pudo identificar al usuario que "
+                        "registra la boleta. Cerrá sesión e "
+                        "ingresá nuevamente."
                     )
 
                 elif not examenes_seleccionados:
-                    st.error("Debés seleccionar al menos un examen.")
+
+                    st.error(
+                        "Debés seleccionar al menos un examen."
+                    )
 
                 else:
 
                     conexion = None
                     cursor = None
+                    ruta_archivo = None
+                    archivo_guardado = False
 
                     try:
+
                         conexion = obtener_conexion()
                         cursor = conexion.cursor()
 
                         conexion.start_transaction()
-                    ruta_archivo = None
 
-                    if archivo_boleta is not None:
-                        os.makedirs("archivos_boletas", exist_ok=True)
+                        # Guardar archivo si el usuario adjuntó uno
 
-                        extension = os.path.splitext(archivo_boleta.name)[1].lower()
-                        nombre_archivo = f"{uuid.uuid4().hex}{extension}"
+                        if archivo_boleta is not None:
 
-                        ruta_archivo = os.path.join(
-                            "archivos_boletas",
-                            nombre_archivo
-                        )
+                            carpeta = "archivos_boletas"
 
-                        with open(ruta_archivo, "wb") as archivo:
-                        archivo.write(archivo_boleta.getvalue())
+                            os.makedirs(
+                                carpeta,
+                                exist_ok=True
+                            )
 
-                        # Guardar información general de la boleta
+                            extension = os.path.splitext(
+                                archivo_boleta.name
+                            )[1].lower()
+
+                            nombre_archivo = (
+                                f"{uuid.uuid4().hex}{extension}"
+                            )
+
+                            ruta_archivo = os.path.join(
+                                carpeta,
+                                nombre_archivo
+                            )
+
+                            with open(
+                                ruta_archivo,
+                                "wb"
+                            ) as archivo:
+
+                                archivo.write(
+                                    archivo_boleta.getvalue()
+                                )
+
+                            archivo_guardado = True
+
+                        # Registrar boleta principal
+
                         consulta_boleta = """
                             INSERT INTO Boleta_Examen
                             (
@@ -201,16 +269,21 @@ def mostrar_boletas():
                             consulta_boleta,
                             (
                                 id_paciente,
-                                opciones_medicos[medico_seleccionado],
-                                opciones_citas[cita_seleccionada],
+                                opciones_medicos[
+                                    medico_seleccionado
+                                ],
+                                opciones_citas[
+                                    cita_seleccionada
+                                ],
                                 id_user,
-                                ruta archivo
+                                ruta_archivo
                             )
                         )
 
                         id_boleta = cursor.lastrowid
 
-                        # Guardar los exámenes de la boleta
+                        # Registrar exámenes de la boleta
+
                         consulta_detalle = """
                             INSERT INTO Detalle_Boleta
                             (ID_Boleta, ID_TipoExamen)
@@ -233,18 +306,36 @@ def mostrar_boletas():
                         conexion.commit()
 
                         st.success(
-                            f"¡Boleta #{id_boleta} registrada correctamente!"
+                            f"¡Boleta #{id_boleta} "
+                            "registrada correctamente!"
                         )
 
                         st.info(
-                            f"Se agregaron {len(detalles)} exámenes "
-                            "a la boleta."
+                            f"Se agregaron {len(detalles)} "
+                            "exámenes a la boleta."
                         )
+
+                        if archivo_guardado:
+                            st.success(
+                                "El archivo de la boleta "
+                                "se adjuntó correctamente."
+                            )
+                        else:
+                            st.info(
+                                "La boleta se registró sin "
+                                "archivo adjunto."
+                            )
 
                     except Exception as error:
 
                         if conexion:
                             conexion.rollback()
+
+                        # Eliminar archivo si falló el registro
+
+                        if archivo_guardado and ruta_archivo:
+                            if os.path.exists(ruta_archivo):
+                                os.remove(ruta_archivo)
 
                         st.error(
                             f"No se pudo registrar la boleta: {error}"
@@ -273,10 +364,12 @@ def mostrar_boletas():
                     B.ID_Boleta,
                     B.Fecha_Solicitud,
                     P.Nombre_Completo AS Paciente,
+
                     COALESCE(
                         CONCAT(M.Nombre, ' ', M.Apellido),
                         'Sin médico referente'
                     ) AS Medico,
+
                     COUNT(D.ID_Detalle) AS Cantidad_Examenes
 
                 FROM Boleta_Examen B
@@ -298,6 +391,7 @@ def mostrar_boletas():
                     M.Apellido
 
                 ORDER BY B.ID_Boleta DESC
+
                 LIMIT 100
             """)
 
@@ -322,7 +416,9 @@ def mostrar_boletas():
                     list(opciones_boletas.keys())
                 )
 
-                id_consulta = opciones_boletas[seleccion_boleta]
+                id_consulta = opciones_boletas[
+                    seleccion_boleta
+                ]
 
                 detalles = consultar_datos("""
                     SELECT
@@ -350,11 +446,16 @@ def mostrar_boletas():
                     )
 
                 else:
-                    st.info("Esta boleta no tiene exámenes asociados.")
+
+                    st.info(
+                        "Esta boleta no tiene exámenes asociados."
+                    )
 
             else:
 
-                st.info("Todavía no hay boletas registradas.")
+                st.info(
+                    "Todavía no hay boletas registradas."
+                )
 
         except Exception as error:
 
