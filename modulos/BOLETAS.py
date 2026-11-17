@@ -420,6 +420,66 @@ def mostrar_boletas():
                     seleccion_boleta
                 ]
 
+                archivo_boleta = consultar_datos("""
+                    SELECT Archivo_Boleta
+                    FROM Boleta_Examen
+                    WHERE ID_Boleta = %s
+                """, (id_consulta,))
+                
+                st.markdown("### 📎 Archivo adjunto")
+                
+                if archivo_boleta and archivo_boleta[0]["Archivo_Boleta"]:
+                
+                    ruta_archivo = archivo_boleta[0]["Archivo_Boleta"]
+                
+                    if os.path.exists(ruta_archivo):
+                
+                        nombre_archivo = os.path.basename(ruta_archivo)
+                
+                        with open(ruta_archivo, "rb") as archivo:
+                            contenido = archivo.read()
+                
+                        extension = os.path.splitext(nombre_archivo)[1].lower()
+
+        if extension == ".pdf":
+
+            st.download_button(
+                "📄 Descargar boleta PDF",
+                data=contenido,
+                file_name=nombre_archivo,
+                mime="application/pdf"
+            )
+
+        elif extension in [".jpg", ".jpeg", ".png"]:
+
+            st.image(
+                contenido,
+                caption="Imagen de la boleta",
+                use_container_width=True
+            )
+
+            st.download_button(
+                "📥 Descargar imagen",
+                data=contenido,
+                file_name=nombre_archivo,
+                mime=(
+                    "image/png"
+                    if extension == ".png"
+                    else "image/jpeg"
+                )
+            )
+
+    else:
+
+        st.warning(
+            "El archivo está registrado en la base de datos, "
+            "pero no se encuentra disponible en el almacenamiento."
+        )
+
+else:
+
+    st.info("Esta boleta no tiene ningún archivo adjunto.")
+                
                 detalles = consultar_datos("""
                     SELECT
                         T.Nombre,
