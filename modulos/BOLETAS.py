@@ -11,8 +11,7 @@ def consultar_datos(consulta, parametros=()):
 
     try:
         cursor.execute(consulta, parametros)
-        resultados = cursor.fetchall()
-        return resultados
+        return cursor.fetchall()
     finally:
         cursor.close()
         conexion.close()
@@ -30,7 +29,7 @@ def mostrar_boletas():
     )
 
     # ==========================================
-    # PESTAÑA 1: REGISTRAR BOLETA
+    # REGISTRAR BOLETA
     # ==========================================
 
     with pestaña_registro:
@@ -83,8 +82,6 @@ def mostrar_boletas():
                 paciente_seleccionado
             ]
 
-            # Citas del paciente seleccionado
-
             citas = consultar_datos("""
                 SELECT ID_Cita, Fecha_Cita, Concepto
                 FROM Cita
@@ -92,57 +89,39 @@ def mostrar_boletas():
                 ORDER BY Fecha_Cita DESC
             """, (id_paciente,))
 
-            # Opciones de médicos
-
             opciones_medicos = {
                 "Sin médico referente": None
             }
 
             for medico in medicos:
-
                 etiqueta = (
                     f"{medico['Nombre']} "
                     f"{medico['Apellido']} "
                     f"(ID: {medico['ID_Medico']})"
                 )
-
-                opciones_medicos[etiqueta] = (
-                    medico["ID_Medico"]
-                )
-
-            # Opciones de citas
+                opciones_medicos[etiqueta] = medico["ID_Medico"]
 
             opciones_citas = {
                 "Sin cita asociada": None
             }
 
             for cita in citas:
-
                 etiqueta = (
                     f"Cita #{cita['ID_Cita']} - "
                     f"{cita['Fecha_Cita']} - "
                     f"{cita['Concepto'] or 'Sin concepto'}"
                 )
-
                 opciones_citas[etiqueta] = cita["ID_Cita"]
-
-            # Opciones de exámenes
 
             opciones_examenes = {}
 
             for examen in tipos_examen:
-
                 etiqueta = (
                     f"{examen['Nombre']} - "
                     f"{examen['Area'] or 'Sin área'} "
                     f"(ID: {examen['ID_TipoExamen']})"
                 )
-
-                opciones_examenes[etiqueta] = (
-                    examen["ID_TipoExamen"]
-                )
-
-            # Formulario
+                opciones_examenes[etiqueta] = examen["ID_TipoExamen"]
 
             with st.form("formulario_boleta"):
 
@@ -170,10 +149,7 @@ def mostrar_boletas():
                 archivo_boleta = st.file_uploader(
                     "Adjuntar boleta (opcional)",
                     type=["pdf", "jpg", "jpeg", "png"],
-                    help=(
-                        "Podés adjuntar un PDF o una fotografía "
-                        "en JPG o PNG. No es obligatorio."
-                    )
+                    help="Podés adjuntar un PDF o una fotografía."
                 )
 
                 guardar = st.form_submit_button(
@@ -181,26 +157,19 @@ def mostrar_boletas():
                     use_container_width=True
                 )
 
-            # Guardar información
-
             if guardar:
 
                 usuario = st.session_state.get("usuario", {})
                 id_user = usuario.get("ID_User")
 
                 if not id_user:
-
                     st.error(
-                        "No se pudo identificar al usuario que "
-                        "registra la boleta. Cerrá sesión e "
-                        "ingresá nuevamente."
+                        "No se pudo identificar al usuario. "
+                        "Cerrá sesión e ingresá nuevamente."
                     )
 
                 elif not examenes_seleccionados:
-
-                    st.error(
-                        "Debés seleccionar al menos un examen."
-                    )
+                    st.error("Debés seleccionar al menos un examen.")
 
                 else:
 
@@ -213,19 +182,14 @@ def mostrar_boletas():
 
                         conexion = obtener_conexion()
                         cursor = conexion.cursor()
-
                         conexion.start_transaction()
 
-                        # Guardar archivo si el usuario adjuntó uno
+                        # Guardar archivo opcional
 
                         if archivo_boleta is not None:
 
                             carpeta = "archivos_boletas"
-
-                            os.makedirs(
-                                carpeta,
-                                exist_ok=True
-                            )
+                            os.makedirs(carpeta, exist_ok=True)
 
                             extension = os.path.splitext(
                                 archivo_boleta.name
@@ -240,18 +204,14 @@ def mostrar_boletas():
                                 nombre_archivo
                             )
 
-                            with open(
-                                ruta_archivo,
-                                "wb"
-                            ) as archivo:
-
+                            with open(ruta_archivo, "wb") as archivo:
                                 archivo.write(
                                     archivo_boleta.getvalue()
                                 )
 
                             archivo_guardado = True
 
-                        # Registrar boleta principal
+                        # Registrar boleta
 
                         consulta_boleta = """
                             INSERT INTO Boleta_Examen
@@ -269,12 +229,8 @@ def mostrar_boletas():
                             consulta_boleta,
                             (
                                 id_paciente,
-                                opciones_medicos[
-                                    medico_seleccionado
-                                ],
-                                opciones_citas[
-                                    cita_seleccionada
-                                ],
+                                opciones_medicos[medico_seleccionado],
+                                opciones_citas[cita_seleccionada],
                                 id_user,
                                 ruta_archivo
                             )
@@ -282,7 +238,7 @@ def mostrar_boletas():
 
                         id_boleta = cursor.lastrowid
 
-                        # Registrar exámenes de la boleta
+                        # Registrar detalles de la boleta
 
                         consulta_detalle = """
                             INSERT INTO Detalle_Boleta
@@ -306,32 +262,26 @@ def mostrar_boletas():
                         conexion.commit()
 
                         st.success(
-                            f"¡Boleta #{id_boleta} "
-                            "registrada correctamente!"
+                            f"¡Boleta #{id_boleta} registrada correctamente!"
                         )
 
                         st.info(
-                            f"Se agregaron {len(detalles)} "
-                            "exámenes a la boleta."
+                            f"Se agregaron {len(detalles)} exámenes."
                         )
 
                         if archivo_guardado:
                             st.success(
-                                "El archivo de la boleta "
-                                "se adjuntó correctamente."
+                                "El archivo se adjuntó correctamente."
                             )
                         else:
                             st.info(
-                                "La boleta se registró sin "
-                                "archivo adjunto."
+                                "La boleta se registró sin archivo adjunto."
                             )
 
                     except Exception as error:
 
                         if conexion:
                             conexion.rollback()
-
-                        # Eliminar archivo si falló el registro
 
                         if archivo_guardado and ruta_archivo:
                             if os.path.exists(ruta_archivo):
@@ -350,7 +300,7 @@ def mostrar_boletas():
                             conexion.close()
 
     # ==========================================
-    # PESTAÑA 2: CONSULTAR BOLETAS
+    # CONSULTAR BOLETAS
     # ==========================================
 
     with pestaña_consulta:
@@ -391,7 +341,6 @@ def mostrar_boletas():
                     M.Apellido
 
                 ORDER BY B.ID_Boleta DESC
-
                 LIMIT 100
             """)
 
@@ -420,66 +369,83 @@ def mostrar_boletas():
                     seleccion_boleta
                 ]
 
-                archivo_boleta = consultar_datos("""
+                # ==================================
+                # MOSTRAR ARCHIVO ADJUNTO
+                # ==================================
+
+                st.markdown("### 📎 Archivo adjunto")
+
+                archivo_resultado = consultar_datos("""
                     SELECT Archivo_Boleta
                     FROM Boleta_Examen
                     WHERE ID_Boleta = %s
                 """, (id_consulta,))
-                
-                st.markdown("### 📎 Archivo adjunto")
-                
-                if archivo_boleta and archivo_boleta[0]["Archivo_Boleta"]:
-                
-                    ruta_archivo = archivo_boleta[0]["Archivo_Boleta"]
-                
-                    if os.path.exists(ruta_archivo):
-                
-                        nombre_archivo = os.path.basename(ruta_archivo)
-                
-                        with open(ruta_archivo, "rb") as archivo:
+
+                if (
+                    archivo_resultado
+                    and archivo_resultado[0]["Archivo_Boleta"]
+                ):
+
+                    ruta = archivo_resultado[0]["Archivo_Boleta"]
+
+                    if os.path.exists(ruta):
+
+                        nombre_archivo = os.path.basename(ruta)
+
+                        with open(ruta, "rb") as archivo:
                             contenido = archivo.read()
-                
-                        extension = os.path.splitext(nombre_archivo)[1].lower()
 
-        if extension == ".pdf":
+                        extension = os.path.splitext(
+                            nombre_archivo
+                        )[1].lower()
 
-            st.download_button(
-                "📄 Descargar boleta PDF",
-                data=contenido,
-                file_name=nombre_archivo,
-                mime="application/pdf"
-            )
+                        if extension == ".pdf":
 
-        elif extension in [".jpg", ".jpeg", ".png"]:
+                            st.download_button(
+                                "📄 Descargar boleta PDF",
+                                data=contenido,
+                                file_name=nombre_archivo,
+                                mime="application/pdf"
+                            )
 
-            st.image(
-                contenido,
-                caption="Imagen de la boleta",
-                use_container_width=True
-            )
+                        elif extension in [".jpg", ".jpeg", ".png"]:
 
-            st.download_button(
-                "📥 Descargar imagen",
-                data=contenido,
-                file_name=nombre_archivo,
-                mime=(
-                    "image/png"
-                    if extension == ".png"
-                    else "image/jpeg"
-                )
-            )
+                            st.image(
+                                contenido,
+                                caption="Imagen de la boleta",
+                                use_container_width=True
+                            )
 
-    else:
+                            mime = (
+                                "image/png"
+                                if extension == ".png"
+                                else "image/jpeg"
+                            )
 
-        st.warning(
-            "El archivo está registrado en la base de datos, "
-            "pero no se encuentra disponible en el almacenamiento."
-        )
+                            st.download_button(
+                                "📥 Descargar imagen",
+                                data=contenido,
+                                file_name=nombre_archivo,
+                                mime=mime
+                            )
 
-else:
+                    else:
 
-    st.info("Esta boleta no tiene ningún archivo adjunto.")
-                
+                        st.warning(
+                            "El archivo figura en la base de datos, "
+                            "pero no se encuentra en el almacenamiento."
+                        )
+
+                else:
+
+                    st.info(
+                        "Esta boleta no tiene ningún archivo adjunto."
+                    )
+
+                # ==================================
+                # MOSTRAR EXÁMENES DE LA BOLETA
+                # ==================================
+
                 detalles = consultar_datos("""
                     SELECT
                         T.Nombre,
@@ -513,9 +479,7 @@ else:
 
             else:
 
-                st.info(
-                    "Todavía no hay boletas registradas."
-                )
+                st.info("Todavía no hay boletas registradas.")
 
         except Exception as error:
 
