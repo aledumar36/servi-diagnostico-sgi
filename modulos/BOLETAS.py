@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+import uuid
 from config.conexion import obtener_conexion
 
 
@@ -131,9 +133,10 @@ def mostrar_boletas():
                     list(opciones_examenes.keys())
                 )
 
-                archivo_boleta = st.text_input(
-                    "Archivo de boleta (opcional)",
-                    placeholder="Nombre o ruta del archivo"
+                archivo_boleta = st.file_uploader(
+                    "Adjuntar boleta (opcional)",
+                    type=["pdf", "jpg", "jpeg", "png"],
+                     help="Podés adjuntar un PDF o una fotografía de la boleta."
                 )
 
                 guardar = st.form_submit_button(
@@ -165,6 +168,21 @@ def mostrar_boletas():
                         cursor = conexion.cursor()
 
                         conexion.start_transaction()
+                    ruta_archivo = None
+
+                    if archivo_boleta is not None:
+                        os.makedirs("archivos_boletas", exist_ok=True)
+
+                        extension = os.path.splitext(archivo_boleta.name)[1].lower()
+                        nombre_archivo = f"{uuid.uuid4().hex}{extension}"
+
+                        ruta_archivo = os.path.join(
+                            "archivos_boletas",
+                            nombre_archivo
+                        )
+
+                        with open(ruta_archivo, "wb") as archivo:
+                        archivo.write(archivo_boleta.getvalue())
 
                         # Guardar información general de la boleta
                         consulta_boleta = """
@@ -186,7 +204,7 @@ def mostrar_boletas():
                                 opciones_medicos[medico_seleccionado],
                                 opciones_citas[cita_seleccionada],
                                 id_user,
-                                archivo_boleta.strip() or None
+                                ruta archivo
                             )
                         )
 
