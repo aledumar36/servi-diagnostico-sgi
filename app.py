@@ -195,8 +195,6 @@ else:
         ]
 
         descripcion_panel = "Panel médico"
-    
-        descripcion_panel = "Panel médico"
 
     elif rol_normalizado == "paciente":
 
@@ -311,7 +309,7 @@ else:
             st.write(
                 "- Consulta de citas asignadas\n"
                 "- Consulta de pacientes vinculados\n"
-                "- Próximamente: expediente médico"
+                "- Registro y consulta de expedientes médicos"
             )
 
             st.info(
@@ -411,10 +409,10 @@ else:
 
     elif seleccion == "Expedientes médicos":
 
-    if rol_normalizado in ["médico", "medico"]:
-        mostrar_expedientes()
-    else:
-        st.error("No tienes permiso para acceder.")
+        if rol_normalizado in ["médico", "medico"]:
+            mostrar_expedientes()
+        else:
+            st.error("No tienes permiso para acceder.")
         
     elif seleccion == "Inventario":
 
