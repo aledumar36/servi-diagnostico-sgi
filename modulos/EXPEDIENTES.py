@@ -87,12 +87,7 @@ def mostrar_expedientes():
                         st.warning("Ingresá el motivo de consulta.")
                     else:
                         try:
-                            # Finalizar la transacción de las consultas anteriores
-                            conexion.commit()
-                    
-                            # Iniciar una transacción nueva para guardar la consulta
                             conexion.start_transaction()
-                    
                             # Verificar autorización nuevamente al momento de guardar.
                             cursor.execute("""
                                 SELECT C.ID_Paciente
@@ -145,20 +140,10 @@ def mostrar_expedientes():
                             st.info("Para registrar otra consulta, actualizá esta página.")
                         except Exception as error:
                             conexion.rollback()
-                        
-                            st.error(
-                                "No fue posible guardar la consulta. "
-                                "No se registraron cambios parciales."
-                            )
-                        
-                            st.error(
-                                f"Tipo de error: {type(error).__name__}"
-                            )
-                        
-                            if hasattr(error, "errno"):
-                                st.code(f"Código MySQL: {error.errno}")
-                            elif isinstance(error, ValueError):
-                                st.warning(str(error))
+                            if isinstance(error, ValueError):
+                                st.error(str(error))
+                            else:
+                                st.error("No fue posible guardar la consulta y la boleta. No se registraron cambios parciales.")
 
         with tab_historial:
             # Solo se muestran pacientes con cita vinculada a este médico.
@@ -206,6 +191,38 @@ def mostrar_expedientes():
                         st.write(f"**Observaciones:** {registro['Observaciones'] or '—'}")
                         st.write(f"**Diagnóstico:** {registro['Diagnostico'] or '—'}")
                         st.write(f"**Tratamiento:** {registro['Tratamiento'] or '—'}")
+
+                        # Mostrar exámenes solicitados desde esta cita.
+                        if registro["ID_Cita"] is not None:
+                            cursor.execute("""
+                                SELECT B.ID_Boleta, T.Nombre, T.Area,
+                                       X.Estado AS Estado_Examen
+                                FROM Boleta_Examen B
+                                INNER JOIN Detalle_Boleta D
+                                    ON D.ID_Boleta = B.ID_Boleta
+                                INNER JOIN Tipo_Examen T
+                                    ON T.ID_TipoExamen = D.ID_TipoExamen
+                                LEFT JOIN Examen X
+                                    ON X.ID_Boleta = B.ID_Boleta
+                                   AND X.ID_TipoExamen = D.ID_TipoExamen
+                                WHERE B.ID_Cita = %s
+                                  AND B.ID_Paciente = %s
+                                  AND B.ID_Medico = %s
+                                ORDER BY B.ID_Boleta, T.Area, T.Nombre
+                            """, (registro["ID_Cita"], id_paciente, id_medico))
+                            examenes_solicitados = cursor.fetchall()
+                            st.markdown("**🧪 Exámenes solicitados**")
+                            if examenes_solicitados:
+                                for examen in examenes_solicitados:
+                                    estado = examen["Estado_Examen"] or "Sin estado registrado"
+                                    st.write(
+                                        f"• {examen['Nombre']} ({examen['Area']}) "
+                                        f"— {estado} · Boleta #{examen['ID_Boleta']}"
+                                    )
+                            else:
+                                st.caption("No hay exámenes solicitados vinculados a esta cita.")
+                        else:
+                            st.caption("Este expediente no está vinculado a una cita.")
     except Exception:
         st.error("No se pudo cargar el módulo de expedientes. Revisá la conexión y el esquema de MySQL.")
     finally:
@@ -213,4 +230,3 @@ def mostrar_expedientes():
             cursor.close()
         if conexion is not None:
             conexion.close()
-
