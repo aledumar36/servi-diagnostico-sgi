@@ -1,4 +1,5 @@
 import streamlit as st
+from pathlib import Path
 from config.conexion import obtener_conexion
 
 
@@ -12,7 +13,7 @@ def mostrar_expedientes():
         st.error("Este módulo es exclusivo del médico.")
         return
 
-    st.title("🩺 Expedientes médicos")
+    st.title("🩺 Atención médica")
     conexion = None
     cursor = None
     try:
@@ -203,64 +204,120 @@ def mostrar_expedientes():
                     format_func=lambda k: pacientes_por_id[k]["Nombre_Completo"],
                     key="paciente_historial_medico",
                 )
-                # Para la primera versión, solo las notas creadas por este médico.
-                cursor.execute("""
-                    SELECT E.ID_Expediente, E.Fecha, E.ID_Cita,
-                           E.Motivo_Consulta, E.Observaciones,
-                           E.Diagnostico, E.Tratamiento
-                    FROM Expediente_Medico E
-                    WHERE E.ID_Paciente = %s AND E.ID_Medico = %s
-                      AND EXISTS (
-                          SELECT 1 FROM Cita C
-                          WHERE C.ID_Paciente = E.ID_Paciente
-                            AND C.ID_Medico = %s
-                      )
-                    ORDER BY E.Fecha DESC, E.ID_Expediente DESC
-                """, (id_paciente, id_medico, id_medico))
-                registros = cursor.fetchall()
-                if not registros:
-                    st.info("Aún no hay atenciones registradas por este médico.")
-                for registro in registros:
-                    with st.expander(
-                        f"Atención #{registro['ID_Expediente']} · {registro['Fecha']}"
-                    ):
-                        st.write(f"**Cita:** {registro['ID_Cita'] or 'Sin cita'}")
-                        st.write(f"**Motivo:** {registro['Motivo_Consulta'] or '—'}")
-                        st.write(f"**Observaciones:** {registro['Observaciones'] or '—'}")
-                        st.write(f"**Diagnóstico:** {registro['Diagnostico'] or '—'}")
-                        st.write(f"**Tratamiento:** {registro['Tratamiento'] or '—'}")
+                tab_consultas, tab_resultados = st.tabs([
+                    "📋 Consultas médicas", "🧪 Resultados de laboratorio"
+                ])
+                with tab_consultas:
+                    cursor.execute("""
+                        SELECT E.ID_Expediente, E.Fecha, E.ID_Cita,
+                               E.Motivo_Consulta, E.Observaciones,
+                               E.Diagnostico, E.Tratamiento
+                        FROM Expediente_Medico E
+                        WHERE E.ID_Paciente = %s AND E.ID_Medico = %s
+                        ORDER BY E.Fecha DESC, E.ID_Expediente DESC
+                    """, (id_paciente, id_medico))
+                    registros = cursor.fetchall()
+                    if not registros:
+                        st.info("Todavía no hay consultas registradas por este médico.")
+                    for registro in registros:
+                        with st.expander(
+                            f"Atención #{registro['ID_Expediente']} · {registro['Fecha']}"
+                        ):
+                            st.write(f"**Cita:** {registro['ID_Cita'] or 'Sin cita'}")
+                            st.write(f"**Motivo:** {registro['Motivo_Consulta'] or '—'}")
+                            st.write(f"**Observaciones:** {registro['Observaciones'] or '—'}")
+                            st.write(f"**Diagnóstico:** {registro['Diagnostico'] or '—'}")
+                            st.write(f"**Tratamiento:** {registro['Tratamiento'] or '—'}")
 
-                        # Mostrar exámenes solicitados desde esta cita.
-                        if registro["ID_Cita"] is not None:
-                            cursor.execute("""
-                                SELECT B.ID_Boleta, T.Nombre, T.Area,
-                                       X.Estado AS Estado_Examen
-                                FROM Boleta_Examen B
-                                INNER JOIN Detalle_Boleta D
-                                    ON D.ID_Boleta = B.ID_Boleta
-                                INNER JOIN Tipo_Examen T
-                                    ON T.ID_TipoExamen = D.ID_TipoExamen
-                                LEFT JOIN Examen X
-                                    ON X.ID_Boleta = B.ID_Boleta
-                                   AND X.ID_TipoExamen = D.ID_TipoExamen
-                                WHERE B.ID_Cita = %s
-                                  AND B.ID_Paciente = %s
-                                  AND B.ID_Medico = %s
-                                ORDER BY B.ID_Boleta, T.Area, T.Nombre
-                            """, (registro["ID_Cita"], id_paciente, id_medico))
-                            examenes_solicitados = cursor.fetchall()
-                            st.markdown("**🧪 Exámenes solicitados**")
-                            if examenes_solicitados:
-                                for examen in examenes_solicitados:
-                                    estado = examen["Estado_Examen"] or "Sin estado registrado"
-                                    st.write(
-                                        f"• {examen['Nombre']} ({examen['Area']}) "
-                                        f"— {estado} · Boleta #{examen['ID_Boleta']}"
+                with tab_resultados:
+                    st.caption(
+                        "Exámenes vinculados a las solicitudes de este médico. "
+                        "Los resultados son de solo lectura."
+                    )
+                    cursor.execute("""
+                        SELECT E.ID_Examen, E.ID_Boleta, E.Estado,
+                               E.Fecha_Realizacion, T.Nombre, T.Area,
+                               B.Fecha_Solicitud
+                        FROM Examen E
+                        INNER JOIN Boleta_Examen B ON B.ID_Boleta = E.ID_Boleta
+                        INNER JOIN Tipo_Examen T ON T.ID_TipoExamen = E.ID_TipoExamen
+                        WHERE B.ID_Paciente = %s
+                          AND (
+                              B.ID_Medico = %s
+                              OR EXISTS (
+                                  SELECT 1 FROM Cita C
+                                  WHERE C.ID_Cita = B.ID_Cita
+                                    AND C.ID_Paciente = B.ID_Paciente
+                                    AND C.ID_Medico = %s
+                              )
+                          )
+                        ORDER BY B.Fecha_Solicitud DESC, E.ID_Examen DESC
+                    """, (id_paciente, id_medico, id_medico))
+                    examenes = cursor.fetchall()
+                    if not examenes:
+                        st.info("No hay exámenes solicitados por este médico para el paciente.")
+                    else:
+                        st.dataframe([
+                            {
+                                "Boleta": f"#{e['ID_Boleta']}",
+                                "Examen": e['Nombre'],
+                                "Área": e['Area'],
+                                "Estado": e['Estado'] or "Sin estado",
+                                "Fecha de realización": str(e['Fecha_Realizacion'] or "—"),
+                            }
+                            for e in examenes
+                        ], hide_index=True, use_container_width=True)
+                        for examen in examenes:
+                            with st.expander(
+                                f"{examen['Nombre']} · Boleta #{examen['ID_Boleta']} "
+                                f"· {examen['Estado'] or 'Sin estado'}"
+                            ):
+                                st.write(f"**Área:** {examen['Area']}")
+                                st.write(f"**Estado:** {examen['Estado'] or 'Sin estado'}")
+                                st.write(f"**Fecha de solicitud:** {examen['Fecha_Solicitud']}")
+                                st.write(f"**Fecha de realización:** {examen['Fecha_Realizacion'] or 'Pendiente'}")
+                                cursor.execute("""
+                                    SELECT A.ID_Archivo, A.Nombre_Archivo,
+                                           A.Ruta_Archivo, A.Tipo_Archivo, A.Fecha_Carga
+                                    FROM Examen_Archivo EA
+                                    INNER JOIN Archivo_Resultado A
+                                        ON A.ID_Archivo = EA.ID_Archivo
+                                    WHERE EA.ID_Examen = %s
+                                    ORDER BY A.Fecha_Carga DESC, A.ID_Archivo DESC
+                                """, (examen['ID_Examen'],))
+                                archivos = cursor.fetchall()
+                                if not archivos:
+                                    st.info("Aún no hay archivos de resultados para este examen.")
+                                for archivo in archivos:
+                                    st.write(f"**Archivo:** {archivo['Nombre_Archivo']}")
+                                    st.caption(f"Cargado: {archivo['Fecha_Carga']}")
+                                    # Los archivos se guardan en el disco local de Streamlit.
+                                    # Evitar abrir rutas fuera de la carpeta autorizada.
+                                    carpeta = Path('archivos_resultados').resolve()
+                                    ruta = Path(archivo['Ruta_Archivo']).resolve()
+                                    if not ruta.is_relative_to(carpeta):
+                                        st.warning("Ruta de archivo no autorizada.")
+                                        continue
+                                    if not ruta.is_file():
+                                        st.warning(
+                                            "El archivo no está disponible en este despliegue "
+                                            "de Streamlit. El registro permanece en MySQL."
+                                        )
+                                        continue
+                                    try:
+                                        contenido = ruta.read_bytes()
+                                    except OSError:
+                                        st.warning("No se pudo leer el archivo de resultados.")
+                                        continue
+                                    st.download_button(
+                                        "📥 Descargar resultado",
+                                        data=contenido,
+                                        file_name=Path(archivo['Nombre_Archivo']).name,
+                                        mime=archivo['Tipo_Archivo'] or 'application/octet-stream',
+                                        key=f"med_desc_{id_paciente}_{examen['ID_Examen']}_{archivo['ID_Archivo']}",
                                     )
-                            else:
-                                st.caption("No hay exámenes solicitados vinculados a esta cita.")
-                        else:
-                            st.caption("Este expediente no está vinculado a una cita.")
+                                    if (archivo['Tipo_Archivo'] or '').startswith('image/'):
+                                        st.image(contenido, use_container_width=True)
     except Exception as error:
         st.error("No se pudo cargar el módulo de expedientes. Revisá la conexión y el esquema de MySQL.")
         st.write("Tipo de error:", type(error).__name__)
@@ -271,4 +328,3 @@ def mostrar_expedientes():
             cursor.close()
         if conexion is not None:
             conexion.close()
-            
