@@ -6,7 +6,6 @@ from modulos.PACIENTES import mostrar_pacientes
 from modulos.CITAS import mostrar_citas
 from modulos.BOLETAS import mostrar_boletas
 from modulos.RESULTADOS import mostrar_resultados
-from modulos.MEDICO import mostrar_medico
 from modulos.EXPEDIENTES import mostrar_expedientes
 
 # ==========================================
@@ -190,8 +189,7 @@ else:
 
         opciones = [
             "Inicio",
-            "Mis citas y pacientes",
-            "Expedientes médicos"
+            "Atención médica"
         ]
 
         descripcion_panel = "Panel médico"
@@ -313,7 +311,7 @@ else:
             )
 
             st.info(
-                "Selecciona 'Mis citas y pacientes' "
+                "Selecciona 'Atención médica' "
                 "en el menú lateral para consultar "
                 "tus asignaciones."
             )
@@ -394,26 +392,13 @@ else:
                 "a este módulo."
             )
 
-    elif seleccion == "Mis citas y pacientes":
-
-        if rol_normalizado in ["médico", "medico"]:
-
-            mostrar_medico()
-
-        else:
-
-            st.error(
-                "No tienes permiso para acceder "
-                "a este módulo."
-            )
-
-    elif seleccion == "Expedientes médicos":
+    elif seleccion == "Atención médica":
 
         if rol_normalizado in ["médico", "medico"]:
             mostrar_expedientes()
         else:
-            st.error("No tienes permiso para acceder.")
-        
+            st.error("No tienes permiso para acceder a este módulo.")
+
     elif seleccion == "Inventario":
 
         if rol_normalizado == "regente-administrador":
