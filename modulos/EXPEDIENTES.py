@@ -87,6 +87,8 @@ def mostrar_expedientes():
                         st.warning("Ingresá el motivo de consulta.")
                     else:
                         try:
+                            # Cerrar la transacción implícita iniciada por las consultas SELECT.
+                            conexion.commit()
                             conexion.start_transaction()
                             # Verificar autorización nuevamente al momento de guardar.
                             cursor.execute("""
@@ -140,10 +142,16 @@ def mostrar_expedientes():
                             st.info("Para registrar otra consulta, actualizá esta página.")
                         except Exception as error:
                             conexion.rollback()
+                            st.error("No fue posible guardar la consulta y la boleta. No se registraron cambios parciales.")
+                            st.write("Tipo de error:", type(error).__name__)
+                            if hasattr(error, "errno") and error.errno is not None:
+                                st.write("Código MySQL:", error.errno)
                             if isinstance(error, ValueError):
-                                st.error(str(error))
-                            else:
-                                st.error("No fue posible guardar la consulta y la boleta. No se registraron cambios parciales.")
+                                st.warning(str(error))
+                            elif getattr(error, "errno", None) == 1062:
+                                st.warning("Hay un registro duplicado. Verificá si esta cita ya tiene expediente o boleta.")
+                            elif getattr(error, "errno", None) == 1452:
+                                st.warning("Falta una referencia válida en la base de datos (llave foránea).")
 
         with tab_historial:
             # Solo se muestran pacientes con cita vinculada a este médico.
