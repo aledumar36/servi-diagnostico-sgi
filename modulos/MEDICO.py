@@ -13,7 +13,7 @@ def mostrar_medico():
         st.error("No se pudo identificar al usuario.")
         return
 
-    if usuario.get("Rol") != "Medico":
+    if str(usuario.get("Rol", "")).strip().lower() not in ["medico", "médico"]:
         st.error("No tienes permiso para acceder.")
         return
 
