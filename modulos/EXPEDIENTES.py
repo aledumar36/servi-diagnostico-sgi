@@ -3,6 +3,13 @@ from pathlib import Path
 from config.conexion import obtener_conexion
 
 
+def etiqueta_paciente(paciente):
+    """Identificador visual único + segundo dato para evitar homónimos."""
+    fecha = paciente.get("Fecha_Nacimiento")
+    fecha_texto = fecha.strftime("%d/%m/%Y") if hasattr(fecha, "strftime") else str(fecha or "No registrada")
+    return f"P-{int(paciente['ID_Paciente']):06d} · {paciente['Nombre_Completo']} · Nacimiento: {fecha_texto}"
+
+
 def mostrar_expedientes():
     """Atenciones médicas y solicitudes de exámenes vinculadas a citas."""
     usuario = st.session_state.get("usuario", {})
@@ -36,7 +43,7 @@ def mostrar_expedientes():
         with tab_registro:
             cursor.execute("""
                 SELECT C.ID_Cita, C.ID_Paciente, C.Fecha_Cita, C.Concepto,
-                       P.Nombre_Completo
+                       P.Nombre_Completo, P.Fecha_Nacimiento
                 FROM Cita C
                 INNER JOIN Paciente P ON P.ID_Paciente = C.ID_Paciente
                 LEFT JOIN Expediente_Medico E ON E.ID_Cita = C.ID_Cita
@@ -55,12 +62,13 @@ def mostrar_expedientes():
                     "Cita asignada *",
                     options=list(citas_por_id),
                     format_func=lambda k: (
-                        f"#{k} · {citas_por_id[k]['Nombre_Completo']} · "
+                        f"Cita #{k} · {etiqueta_paciente(citas_por_id[k])} · "
                         f"{citas_por_id[k]['Fecha_Cita']}"
                     ),
                 )
                 cita = citas_por_id[id_cita]
-                st.write(f"**Paciente:** {cita['Nombre_Completo']}")
+                st.write(f"**Paciente:** {etiqueta_paciente(cita)}")
+                st.info("Verificá el código y la fecha de nacimiento antes de registrar la consulta.")
                 st.write(f"**Concepto de cita:** {cita['Concepto'] or 'No especificado'}")
 
                 cursor.execute("""
@@ -84,10 +92,15 @@ def mostrar_expedientes():
                             f"({examenes_por_id[k]['Area']}) · ID {k}"
                         ),
                     )
+                    identidad_confirmada = st.checkbox(
+                        "Confirmo que verifiqué el código y la fecha de nacimiento del paciente"
+                    )
                     guardar = st.form_submit_button("Guardar consulta", type="primary")
 
                 if guardar:
-                    if not motivo.strip():
+                    if not identidad_confirmada:
+                        st.warning("Confirmá la identidad del paciente antes de guardar.")
+                    elif not motivo.strip():
                         st.warning("Ingresá el motivo de consulta.")
                     else:
                         try:
@@ -160,7 +173,8 @@ def mostrar_expedientes():
         with tab_atendidas:
             cursor.execute("""
                 SELECT C.ID_Cita, C.Fecha_Cita, C.Concepto,
-                       P.Nombre_Completo, E.ID_Expediente, E.Fecha AS Fecha_Atencion
+                       P.ID_Paciente, P.Nombre_Completo, P.Fecha_Nacimiento,
+                       E.ID_Expediente, E.Fecha AS Fecha_Atencion
                 FROM Cita C
                 INNER JOIN Paciente P ON P.ID_Paciente = C.ID_Paciente
                 INNER JOIN Expediente_Medico E ON E.ID_Cita = C.ID_Cita
@@ -176,7 +190,7 @@ def mostrar_expedientes():
                 st.metric("Total de citas atendidas", len(atendidas))
                 for atencion in atendidas:
                     with st.expander(
-                        f"Cita #{atencion['ID_Cita']} · {atencion['Nombre_Completo']}"
+                        f"Cita #{atencion['ID_Cita']} · {etiqueta_paciente(atencion)}"
                     ):
                         st.write(f"**Fecha de cita:** {atencion['Fecha_Cita']}")
                         st.write(f"**Fecha de atención:** {atencion['Fecha_Atencion']}")
@@ -187,7 +201,7 @@ def mostrar_expedientes():
         with tab_historial:
             # Solo se muestran pacientes con cita vinculada a este médico.
             cursor.execute("""
-                SELECT DISTINCT P.ID_Paciente, P.Nombre_Completo
+                SELECT DISTINCT P.ID_Paciente, P.Nombre_Completo, P.Fecha_Nacimiento
                 FROM Paciente P
                 INNER JOIN Cita C ON C.ID_Paciente = P.ID_Paciente
                 WHERE C.ID_Medico = %s
@@ -201,9 +215,10 @@ def mostrar_expedientes():
                 id_paciente = st.selectbox(
                     "Paciente",
                     list(pacientes_por_id),
-                    format_func=lambda k: pacientes_por_id[k]["Nombre_Completo"],
+                    format_func=lambda k: etiqueta_paciente(pacientes_por_id[k]),
                     key="paciente_historial_medico",
                 )
+                st.caption(f"Paciente seleccionado: {etiqueta_paciente(pacientes_por_id[id_paciente])}")
                 tab_consultas, tab_resultados = st.tabs([
                     "📋 Consultas médicas", "🧪 Resultados de laboratorio"
                 ])
