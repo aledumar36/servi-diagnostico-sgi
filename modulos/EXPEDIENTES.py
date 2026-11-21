@@ -31,7 +31,7 @@ def mostrar_expedientes():
         id_medico = medico["ID_Medico"]
         st.caption(f"Médico responsable: {medico['Nombre']} {medico['Apellido']}")
 
-        tab_registro, tab_historial = st.tabs(["Registrar consulta", "Historial clínico"])
+        tab_registro, tab_atendidas, tab_historial = st.tabs(["📅 Citas pendientes", "✅ Citas atendidas", "📋 Historial clínico"])
         with tab_registro:
             cursor.execute("""
                 SELECT C.ID_Cita, C.ID_Paciente, C.Fecha_Cita, C.Concepto,
@@ -43,6 +43,9 @@ def mostrar_expedientes():
                 ORDER BY C.Fecha_Cita DESC
             """, (id_medico,))
             citas = cursor.fetchall()
+            st.subheader("Citas pendientes")
+            st.caption("Se consideran pendientes las citas que todavía no tienen expediente registrado.")
+            st.metric("Total de citas pendientes", len(citas))
             if not citas:
                 st.info("No hay citas asignadas pendientes de registrar.")
             else:
@@ -139,11 +142,11 @@ def mostrar_expedientes():
                             st.success(f"Consulta #{id_expediente} registrada correctamente.")
                             if id_boleta:
                                 st.success(f"Boleta #{id_boleta} generada con {len(seleccionados)} examen(es) pendiente(s).")
-                            st.info("Para registrar otra consulta, actualizá esta página.")
+                            st.info("La cita ya fue atendida. Actualizá la página para verla en Citas atendidas.")
                         except Exception as error:
                             conexion.rollback()
                             st.error("No fue posible guardar la consulta y la boleta. No se registraron cambios parciales.")
-                            st.write("Tipo de error:", type(error).__name__)
+                            st.write("**Tipo de error:**", type(error).__name__)
                             if hasattr(error, "errno") and error.errno is not None:
                                 st.write("Código MySQL:", error.errno)
                             if isinstance(error, ValueError):
@@ -152,6 +155,33 @@ def mostrar_expedientes():
                                 st.warning("Hay un registro duplicado. Verificá si esta cita ya tiene expediente o boleta.")
                             elif getattr(error, "errno", None) == 1452:
                                 st.warning("Falta una referencia válida en la base de datos (llave foránea).")
+
+        with tab_atendidas:
+            cursor.execute("""
+                SELECT C.ID_Cita, C.Fecha_Cita, C.Concepto,
+                       P.Nombre_Completo, E.ID_Expediente, E.Fecha AS Fecha_Atencion
+                FROM Cita C
+                INNER JOIN Paciente P ON P.ID_Paciente = C.ID_Paciente
+                INNER JOIN Expediente_Medico E ON E.ID_Cita = C.ID_Cita
+                WHERE C.ID_Medico = %s AND E.ID_Medico = %s
+                ORDER BY E.Fecha DESC, E.ID_Expediente DESC
+            """, (id_medico, id_medico))
+            atendidas = cursor.fetchall()
+            st.subheader("Citas atendidas")
+            st.caption("Una cita aparece aquí cuando ya tiene expediente médico registrado.")
+            if not atendidas:
+                st.info("Todavía no hay citas atendidas registradas.")
+            else:
+                st.metric("Total de citas atendidas", len(atendidas))
+                for atencion in atendidas:
+                    with st.expander(
+                        f"Cita #{atencion['ID_Cita']} · {atencion['Nombre_Completo']}"
+                    ):
+                        st.write(f"**Fecha de cita:** {atencion['Fecha_Cita']}")
+                        st.write(f"**Fecha de atención:** {atencion['Fecha_Atencion']}")
+                        st.write(f"**Expediente:** #{atencion['ID_Expediente']}")
+                        st.write(f"**Concepto:** {atencion['Concepto'] or 'No especificado'}")
+                        st.success("Atendida")
 
         with tab_historial:
             # Solo se muestran pacientes con cita vinculada a este médico.
@@ -231,10 +261,14 @@ def mostrar_expedientes():
                                 st.caption("No hay exámenes solicitados vinculados a esta cita.")
                         else:
                             st.caption("Este expediente no está vinculado a una cita.")
-    except Exception:
+    except Exception as error:
         st.error("No se pudo cargar el módulo de expedientes. Revisá la conexión y el esquema de MySQL.")
+        st.write("Tipo de error:", type(error).__name__)
+        if getattr(error, "errno", None) is not None:
+            st.write("Código MySQL:", error.errno)
     finally:
         if cursor is not None:
             cursor.close()
         if conexion is not None:
             conexion.close()
+            
