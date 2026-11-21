@@ -305,8 +305,6 @@ def mostrar_boletas():
                             "y se crearon sus exámenes con estado Pendiente."
                         )
 
-                        )
-
                         if archivo_guardado:
                             st.success(
                                 "El archivo se adjuntó correctamente."
