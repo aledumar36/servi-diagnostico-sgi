@@ -254,11 +254,46 @@ def mostrar_boletas():
                             for examen in examenes_seleccionados
                         ]
 
+                        
                         cursor.executemany(
                             consulta_detalle,
                             detalles
                         )
-
+                        
+                        # ==========================================
+                        # CREAR EXÁMENES PENDIENTES AUTOMÁTICAMENTE
+                        # ==========================================
+                        
+                        consulta_examen = """
+                            INSERT INTO Examen
+                            (
+                                ID_Boleta,
+                                ID_Paciente,
+                                ID_TipoExamen,
+                                ID_User_Registra,
+                                Fecha_Realizacion,
+                                Estado
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """
+                        
+                        examenes_pendientes = [
+                            (
+                                id_boleta,
+                                id_paciente,
+                                opciones_examenes[examen],
+                                id_user,
+                                None,
+                                "Pendiente"
+                            )
+                            for examen in examenes_seleccionados
+                        ]
+                        
+                        cursor.executemany(
+                            consulta_examen,
+                            examenes_pendientes
+                        )
+                        
                         conexion.commit()
 
                         st.success(
@@ -266,7 +301,10 @@ def mostrar_boletas():
                         )
 
                         st.info(
-                            f"Se agregaron {len(detalles)} exámenes."
+                            f"Se registraron {len(detalles)} pruebas "
+                            "y se crearon sus exámenes con estado Pendiente."
+                        )
+
                         )
 
                         if archivo_guardado:
