@@ -187,10 +187,7 @@ else:
 
     elif rol_normalizado in ["médico", "medico"]:
 
-        opciones = [
-            "Inicio",
-            "Atención médica"
-        ]
+        opciones = ["Atención médica"]
 
         descripcion_panel = "Panel médico"
 
@@ -231,10 +228,14 @@ else:
 
     st.sidebar.divider()
 
-    seleccion = st.sidebar.radio(
-        "MENÚ PRINCIPAL",
-        opciones
-    )
+    if rol_normalizado in ["médico", "medico"]:
+        # El médico entra directamente a su módulo, sin selector de Inicio.
+        seleccion = "Atención médica"
+    else:
+        seleccion = st.sidebar.radio(
+            "MENÚ PRINCIPAL",
+            opciones
+        )
 
     st.sidebar.divider()
 
