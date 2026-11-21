@@ -1,4 +1,3 @@
-
 import streamlit as st
 import hashlib
 
@@ -7,7 +6,12 @@ from modulos.PACIENTES import mostrar_pacientes
 from modulos.CITAS import mostrar_citas
 from modulos.BOLETAS import mostrar_boletas
 from modulos.RESULTADOS import mostrar_resultados
+from modulos.MEDICO import mostrar_medico
 
+
+# ==========================================
+# CONFIGURACIÓN DE LA APLICACIÓN
+# ==========================================
 
 st.set_page_config(
     page_title="Servi-Diagnóstico",
@@ -36,6 +40,8 @@ def iniciar_sesion(usuario, contrasena):
         consulta = """
             SELECT
                 U.ID_User,
+                U.ID_Medico,
+                U.ID_Paciente,
                 U.Nombre,
                 U.Apellido,
                 U.Usuario,
@@ -56,6 +62,7 @@ def iniciar_sesion(usuario, contrasena):
         return cursor.fetchone()
 
     finally:
+
         if cursor:
             cursor.close()
 
@@ -71,7 +78,10 @@ if not st.session_state.get("autenticado", False):
 
     st.title("SERVI-DIAGNÓSTICO")
     st.subheader("Sistema de Gestión de la Información")
-    st.write("Bienvenido al sistema del laboratorio clínico")
+
+    st.write(
+        "Bienvenido al sistema del laboratorio clínico"
+    )
 
     st.divider()
     st.subheader("Iniciar sesión")
@@ -93,27 +103,39 @@ if not st.session_state.get("autenticado", False):
     if ingresar:
 
         if not usuario or not contrasena:
-            st.warning("Ingrese su usuario y contraseña.")
+
+            st.warning(
+                "Ingrese su usuario y contraseña."
+            )
 
         else:
+
             try:
+
                 resultado = iniciar_sesion(
                     usuario,
                     contrasena
                 )
 
                 if resultado:
+
                     st.session_state["autenticado"] = True
                     st.session_state["usuario"] = resultado
+
                     st.rerun()
 
                 else:
-                    st.error("Usuario o contraseña incorrectos.")
+
+                    st.error(
+                        "Usuario o contraseña incorrectos."
+                    )
 
             except Exception:
+
                 st.error(
                     "No se pudo iniciar sesión. "
-                    "Verifique la conexión e inténtelo nuevamente."
+                    "Verifique la conexión e "
+                    "inténtelo nuevamente."
                 )
 
 
@@ -164,19 +186,21 @@ else:
 
         descripcion_panel = "Panel de secretaría"
 
-    elif rol_normalizado == "médico":
+    elif rol_normalizado in ["médico", "medico"]:
 
-        opciones = ["Inicio"]
-        descripcion_panel = "Panel médico"
+        opciones = [
+            "Inicio",
+            "Mis citas y pacientes"
+        ]
 
-    elif rol_normalizado == "medico":
-
-        opciones = ["Inicio"]
         descripcion_panel = "Panel médico"
 
     elif rol_normalizado == "paciente":
 
-        opciones = ["Inicio"]
+        opciones = [
+            "Inicio"
+        ]
+
         descripcion_panel = "Panel del paciente"
 
     else:
@@ -185,6 +209,7 @@ else:
             "El rol de este usuario no tiene "
             "un menú configurado."
         )
+
         st.stop()
 
     # --------------------------------------
@@ -192,7 +217,10 @@ else:
     # --------------------------------------
 
     st.sidebar.title("SERVI-DIAGNÓSTICO")
-    st.sidebar.caption(descripcion_panel)
+
+    st.sidebar.caption(
+        descripcion_panel
+    )
 
     st.sidebar.write(
         f"Usuario: {nombre_completo}"
@@ -215,6 +243,7 @@ else:
         "Cerrar sesión",
         use_container_width=True
     ):
+
         st.session_state.clear()
         st.rerun()
 
@@ -225,13 +254,19 @@ else:
     if seleccion == "Inicio":
 
         st.title("Panel principal")
-        st.write(f"Bienvenido, {nombre_completo}")
-
-        st.subheader("Resumen del laboratorio")
 
         st.write(
-            "Desde este panel puede acceder a los "
-            "módulos disponibles de Servi-Diagnóstico."
+            f"Bienvenido, {nombre_completo}"
+        )
+
+        st.subheader(
+            "Resumen del laboratorio"
+        )
+
+        st.write(
+            "Desde este panel puede acceder "
+            "a los módulos disponibles de "
+            "Servi-Diagnóstico."
         )
 
         if rol_normalizado in [
@@ -239,7 +274,9 @@ else:
             "secretario"
         ]:
 
-            st.markdown("### 🧪 Gestión de laboratorio")
+            st.markdown(
+                "### 🧪 Gestión de laboratorio"
+            )
 
             st.write(
                 "- Registro y consulta de pacientes\n"
@@ -251,7 +288,9 @@ else:
 
             if rol_normalizado == "regente-administrador":
 
-                st.markdown("### 📦 Administración")
+                st.markdown(
+                    "### 📦 Administración"
+                )
 
                 st.write(
                     "- Inventario\n"
@@ -260,57 +299,164 @@ else:
                     "- Usuarios y roles"
                 )
 
-        else:
+        elif rol_normalizado in ["médico", "medico"]:
+
+            st.markdown(
+                "### 🩺 Atención médica"
+            )
+
+            st.write(
+                "- Consulta de citas asignadas\n"
+                "- Consulta de pacientes vinculados\n"
+                "- Próximamente: expediente médico"
+            )
 
             st.info(
-                "Su panel está disponible. "
-                "Las funciones específicas de este rol "
+                "Selecciona 'Mis citas y pacientes' "
+                "en el menú lateral para consultar "
+                "tus asignaciones."
+            )
+
+        elif rol_normalizado == "paciente":
+
+            st.markdown(
+                "### 👤 Portal del paciente"
+            )
+
+            st.info(
+                "Las funciones de consulta de "
+                "citas y resultados personales "
                 "se incorporarán posteriormente."
             )
 
     elif seleccion == "Pacientes":
 
-        mostrar_pacientes()
+        if rol_normalizado in [
+            "regente-administrador",
+            "secretario"
+        ]:
+
+            mostrar_pacientes()
+
+        else:
+
+            st.error(
+                "No tienes permiso para acceder "
+                "a este módulo."
+            )
 
     elif seleccion == "Citas":
 
-        mostrar_citas()
+        if rol_normalizado in [
+            "regente-administrador",
+            "secretario"
+        ]:
+
+            mostrar_citas()
+
+        else:
+
+            st.error(
+                "No tienes permiso para acceder "
+                "a este módulo."
+            )
 
     elif seleccion == "Boletas de examen":
 
-        mostrar_boletas()
+        if rol_normalizado in [
+            "regente-administrador",
+            "secretario"
+        ]:
+
+            mostrar_boletas()
+
+        else:
+
+            st.error(
+                "No tienes permiso para acceder "
+                "a este módulo."
+            )
 
     elif seleccion == "Resultados de exámenes":
 
-        mostrar_resultados()
+        if rol_normalizado in [
+            "regente-administrador",
+            "secretario"
+        ]:
+
+            mostrar_resultados()
+
+        else:
+
+            st.error(
+                "No tienes permiso para acceder "
+                "a este módulo."
+            )
+
+    elif seleccion == "Mis citas y pacientes":
+
+        if rol_normalizado in ["médico", "medico"]:
+
+            mostrar_medico()
+
+        else:
+
+            st.error(
+                "No tienes permiso para acceder "
+                "a este módulo."
+            )
 
     elif seleccion == "Inventario":
 
-        st.title("📦 Gestión de inventario")
-        st.write(
-            "Control de productos, existencias y vencimientos."
-        )
+        if rol_normalizado == "regente-administrador":
+
+            st.title(
+                "📦 Gestión de inventario"
+            )
+
+            st.write(
+                "Control de productos, "
+                "existencias y vencimientos."
+            )
 
     elif seleccion == "Compras y proveedores":
 
-        st.title("Compras y proveedores")
-        st.write(
-            "Gestión de proveedores y órdenes de compra."
-        )
+        if rol_normalizado == "regente-administrador":
+
+            st.title(
+                "Compras y proveedores"
+            )
+
+            st.write(
+                "Gestión de proveedores "
+                "y órdenes de compra."
+            )
 
     elif seleccion == "Reseñas":
 
-        st.title("Reseñas de pacientes")
-        st.write(
-            "Consulta de opiniones y calificaciones."
-        )
+        if rol_normalizado == "regente-administrador":
+
+            st.title(
+                "Reseñas de pacientes"
+            )
+
+            st.write(
+                "Consulta de opiniones "
+                "y calificaciones."
+            )
 
     elif seleccion == "Usuarios y roles":
 
-        st.title("Gestión de usuarios y roles")
-        st.write(
-            "Administración de cuentas y permisos."
-        )
+        if rol_normalizado == "regente-administrador":
+
+            st.title(
+                "Gestión de usuarios y roles"
+            )
+
+            st.write(
+                "Administración de cuentas "
+                "y permisos."
+            )
 
     # --------------------------------------
     # MÓDULOS PENDIENTES
@@ -327,6 +473,7 @@ else:
 
         st.info(
             "Esta sección está creada. "
-            "Sus formularios y conexión con la base "
-            "de datos se desarrollarán posteriormente."
+            "Sus formularios y conexión con "
+            "la base de datos se desarrollarán "
+            "posteriormente."
         )
