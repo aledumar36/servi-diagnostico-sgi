@@ -2,6 +2,7 @@ import os
 import uuid
 from datetime import date, datetime
 from pathlib import Path
+import unicodedata
 
 import streamlit as st
 from config.conexion import obtener_conexion
@@ -165,6 +166,25 @@ def quitar_asociacion(id_examen, id_archivo):
             conexion.close()
 
 
+def normalizar_busqueda(valor):
+    texto = unicodedata.normalize('NFKD', str(valor or '').casefold())
+    return ''.join(c for c in texto if not unicodedata.combining(c))
+
+
+def coincide_paciente(boleta, termino):
+    termino = normalizar_busqueda(termino).strip()
+    if not termino:
+        return True
+    codigo = f"P-{int(boleta['ID_Paciente']):06d}"
+    campos = (
+        codigo,
+        str(boleta['ID_Paciente']),
+        boleta['Nombre_Completo'],
+        boleta.get('DUI'),
+    )
+    return any(termino in normalizar_busqueda(campo) for campo in campos)
+
+
 def mostrar_resultados():
     st.title('🧪 Resultados de exámenes')
     st.caption('Control de pendientes, carga y consulta de resultados por origen de la solicitud.')
@@ -212,19 +232,30 @@ def mostrar_resultados():
             )
 
     st.divider()
+    st.subheader('Buscar resultados por paciente')
+    busqueda = st.text_input(
+        'Código, nombre completo o DUI',
+        placeholder='Ejemplo: P-000025, Juan Pérez o 01234567-8',
+        key='resultados_busqueda_paciente',
+    ).strip()
     grupo_seleccionado = st.radio(
         'Origen de la solicitud',
-        ['Con médico asociado', 'Servi-Diagnóstico'],
+        ['Todos los resultados', 'Con médico asociado', 'Servi-Diagnóstico'],
         horizontal=True,
-        key='resultados_origen',
+        key='resultados_origen_v2',
     )
     con_medico = grupo_seleccionado == 'Con médico asociado'
-    filtro_medico = 'B.ID_Medico IS NOT NULL' if con_medico else 'B.ID_Medico IS NULL'
+    if grupo_seleccionado == 'Todos los resultados':
+        filtro_medico = '1 = 1'
+    elif con_medico:
+        filtro_medico = 'B.ID_Medico IS NOT NULL'
+    else:
+        filtro_medico = 'B.ID_Medico IS NULL'
 
     try:
         boletas = consultar(f"""
             SELECT B.ID_Boleta, B.Fecha_Solicitud, B.ID_Paciente,
-                   P.Nombre_Completo, P.Fecha_Nacimiento,
+                   P.Nombre_Completo, P.Fecha_Nacimiento, P.DUI,
                    M.Nombre AS Nombre_Medico, M.Apellido AS Apellido_Medico,
                    COUNT(E.ID_Examen) AS Total_Examenes,
                    SUM(CASE WHEN E.Estado = 'Pendiente' THEN 1 ELSE 0 END) AS Pendientes
@@ -234,15 +265,23 @@ def mostrar_resultados():
             LEFT JOIN Examen E ON E.ID_Boleta = B.ID_Boleta
             WHERE {filtro_medico}
             GROUP BY B.ID_Boleta, B.Fecha_Solicitud, B.ID_Paciente,
-                     P.Nombre_Completo, P.Fecha_Nacimiento, M.Nombre, M.Apellido
+                     P.Nombre_Completo, P.Fecha_Nacimiento, P.DUI, M.Nombre, M.Apellido
             ORDER BY B.Fecha_Solicitud ASC, B.ID_Boleta ASC
         """)
     except Exception as error:
         st.error(f'No se pudieron cargar las boletas: {error}')
         return
 
+    if busqueda:
+        boletas = [b for b in boletas if coincide_paciente(b, busqueda)]
+        pacientes_encontrados = len({b['ID_Paciente'] for b in boletas})
+        st.caption(
+            f'Pacientes encontrados: {pacientes_encontrados} · '
+            f'Boletas encontradas: {len(boletas)}'
+        )
+
     if not boletas:
-        st.info('No hay boletas registradas en esta categoría.')
+        st.info('No se encontraron boletas para esta búsqueda y categoría.')
         return
 
     # Antigüedad desde la fecha de solicitud hasta la fecha actual.
@@ -291,8 +330,9 @@ def mostrar_resultados():
     )
     solo_pendientes = st.checkbox(
         'Mostrar solo boletas con exámenes pendientes',
-        value=True,
-        key='resultados_solo_pendientes',
+        value=False,
+        key='resultados_solo_pendientes_v2',
+        help='Desmarcá esta opción para consultar también resultados ya cargados.',
     )
     if solo_pendientes:
         boletas = pendientes
@@ -310,8 +350,10 @@ def mostrar_resultados():
         nacimiento = b['Fecha_Nacimiento']
         nacimiento_texto = nacimiento.strftime('%d/%m/%Y') if hasattr(nacimiento, 'strftime') else str(nacimiento or 'No registrada')
         medico_texto = ''
-        if con_medico:
+        if b['Nombre_Medico'] or b['Apellido_Medico']:
             medico_texto = f" · Médico: {b['Nombre_Medico'] or ''} {b['Apellido_Medico'] or ''}"
+        else:
+            medico_texto = ' · Servi-Diagnóstico'
         etiqueta = (
             f"Boleta #{b['ID_Boleta']} · P-{b['ID_Paciente']:06d} · "
             f"{b['Nombre_Completo']} · Nac.: {nacimiento_texto} · "
