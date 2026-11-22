@@ -11,11 +11,12 @@ def mostrar_inventario():
         "y movimientos de productos."
     )
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Consultar inventario",
         "Registrar producto",
         "Registrar entrada",
         "Registrar salida"
+        "Editar inventario"
     ])
 
     # ==========================================
@@ -401,4 +402,301 @@ def mostrar_inventario():
             "Aquí registraremos las salidas "
             "de productos del inventario."
         )
-      
+
+
+    # ==========================================
+    # EDITAR INVENTARIO
+    # ==========================================
+
+    with tab5:
+
+        st.subheader("Editar inventario")
+        st.write(
+            "Corrija existencias, stock mínimo y "
+            "fechas de vencimiento."
+        )
+
+        st.info(
+            "Los cambios de cantidad se registrarán "
+            "como movimientos de ajuste."
+        )
+
+        usuario = st.session_state.get("usuario", {})
+
+        rol = str(usuario.get("Rol", "")).strip().lower()
+
+        if rol != "regente-administrador":
+
+            st.error(
+                "Solo el regente-administrador puede "
+                "realizar ajustes de inventario."
+            )
+
+        else:
+
+            conexion = None
+            cursor = None
+
+            try:
+
+                conexion = obtener_conexion()
+                cursor = conexion.cursor(dictionary=True)
+
+                cursor.execute("""
+                    SELECT
+                        I.ID_Inventario,
+                        P.Nombre AS Producto,
+                        P.Marca,
+                        I.Cantidad,
+                        I.Stock_Minimo,
+                        I.Fecha_Almacenado,
+                        I.Fecha_Vencimiento
+                    FROM Inventario I
+                    INNER JOIN Producto P
+                        ON I.ID_Producto = P.ID_Producto
+                    ORDER BY P.Nombre, I.ID_Inventario
+                """)
+
+                registros = cursor.fetchall()
+
+                if not registros:
+
+                    st.info(
+                        "No hay existencias registradas "
+                        "para modificar."
+                    )
+
+                else:
+
+                    opciones = {
+                        (
+                            f"#{r['ID_Inventario']} - "
+                            f"{r['Producto']} "
+                            f"({r['Marca'] or 'Sin marca'})"
+                        ): r
+                        for r in registros
+                    }
+
+                    elegido = st.selectbox(
+                        "Seleccione el registro de inventario",
+                        list(opciones.keys())
+                    )
+
+                    registro = opciones[elegido]
+
+                    id_inventario = registro["ID_Inventario"]
+
+                    st.write(
+                        f"**Cantidad actual:** "
+                        f"{registro['Cantidad']}"
+                    )
+
+                    with st.form(
+                        f"form_ajuste_{id_inventario}"
+                    ):
+
+                        nueva_cantidad = st.number_input(
+                            "Nueva cantidad disponible",
+                            min_value=0.0,
+                            value=float(registro["Cantidad"]),
+                            step=1.0
+                        )
+
+                        nuevo_stock_minimo = st.number_input(
+                            "Stock mínimo",
+                            min_value=0.0,
+                            value=float(registro["Stock_Minimo"]),
+                            step=1.0
+                        )
+
+                        fecha_almacenado = st.date_input(
+                            "Fecha de almacenamiento",
+                            value=registro["Fecha_Almacenado"],
+                            min_value=date(2000, 1, 1),
+                            max_value=date(2100, 12, 31)
+                        )
+
+                        tiene_vencimiento = st.checkbox(
+                            "Tiene fecha de vencimiento",
+                            value=(
+                                registro["Fecha_Vencimiento"]
+                                is not None
+                            )
+                        )
+
+                        fecha_vencimiento = st.date_input(
+                            "Fecha de vencimiento",
+                            value=(
+                                registro["Fecha_Vencimiento"]
+                                or date.today()
+                            ),
+                            min_value=date(2000, 1, 1),
+                            max_value=date(2100, 12, 31),
+                            disabled=not tiene_vencimiento
+                        )
+
+                        if not tiene_vencimiento:
+                            fecha_vencimiento = None
+
+                        motivo = st.text_area(
+                            "Motivo de la modificación *",
+                            placeholder=(
+                                "Ej. Corrección por conteo físico"
+                            )
+                        )
+
+                        confirmar = st.checkbox(
+                            "Confirmo que revisé los datos "
+                            "y autorizo esta modificación"
+                        )
+
+                        guardar = st.form_submit_button(
+                            "Guardar modificación",
+                            type="primary"
+                        )
+
+                    if guardar:
+
+                        if not motivo.strip():
+
+                            st.warning(
+                                "Debe indicar el motivo "
+                                "de la modificación."
+                            )
+
+                        elif not confirmar:
+
+                            st.warning(
+                                "Debe confirmar la modificación."
+                            )
+
+                        elif (
+                            fecha_vencimiento is not None
+                            and fecha_vencimiento < fecha_almacenado
+                        ):
+
+                            st.warning(
+                                "El vencimiento no puede ser "
+                                "anterior al almacenamiento."
+                            )
+
+                        else:
+
+                            cursor.execute("""
+                                SELECT Cantidad
+                                FROM Inventario
+                                WHERE ID_Inventario = %s
+                                FOR UPDATE
+                            """, (id_inventario,))
+
+                            actual = cursor.fetchone()
+
+                            if actual is None:
+                                conexion.rollback()
+                                st.error(
+                                    "El registro ya no existe."
+                                )
+
+                            else:
+
+                                cantidad_anterior = float(
+                                    actual["Cantidad"]
+                                )
+
+                                diferencia = round(
+                                    nueva_cantidad - cantidad_anterior,
+                                    2
+                                )
+
+                                cursor.execute("""
+                                    UPDATE Inventario
+                                    SET
+                                        Cantidad = %s,
+                                        Stock_Minimo = %s,
+                                        Fecha_Almacenado = %s,
+                                        Fecha_Vencimiento = %s
+                                    WHERE ID_Inventario = %s
+                                """, (
+                                    nueva_cantidad,
+                                    nuevo_stock_minimo,
+                                    fecha_almacenado,
+                                    fecha_vencimiento,
+                                    id_inventario
+                                ))
+
+                                if diferencia != 0:
+
+                                    id_usuario = usuario.get(
+                                        "ID_User"
+                                    )
+
+                                    if not id_usuario:
+                                        raise ValueError(
+                                            "No se identificó "
+                                            "al usuario activo."
+                                        )
+
+                                    descripcion = (
+                                        f"{motivo.strip()} | "
+                                        f"Anterior: "
+                                        f"{cantidad_anterior:g} | "
+                                        f"Nuevo: "
+                                        f"{nueva_cantidad:g} | "
+                                        f"Diferencia: "
+                                        f"{diferencia:+g}"
+                                    )
+
+                                    cursor.execute("""
+                                        INSERT INTO
+                                            Movimiento_Inventario
+                                        (
+                                            ID_Inventario,
+                                            ID_User,
+                                            Tipo_Movimiento,
+                                            Cantidad,
+                                            Motivo
+                                        )
+                                        VALUES (
+                                            %s, %s, %s, %s, %s
+                                        )
+                                    """, (
+                                        id_inventario,
+                                        id_usuario,
+                                        "Ajuste",
+                                        abs(diferencia),
+                                        descripcion[:255]
+                                    ))
+
+                                conexion.commit()
+
+                                st.success(
+                                    "Inventario actualizado "
+                                    "correctamente."
+                                )
+
+                                if diferencia != 0:
+
+                                    st.info(
+                                        f"Ajuste registrado: "
+                                        f"{diferencia:+g} unidades."
+                                    )
+
+                                st.rerun()
+
+            except Exception as e:
+
+                if conexion:
+                    conexion.rollback()
+
+                st.error(
+                    f"Error al editar inventario: {e}"
+                )
+
+            finally:
+
+                if cursor:
+                    cursor.close()
+
+                if conexion:
+                    conexion.close()
+
