@@ -12,6 +12,7 @@ from modulos.PROVEEDORES import mostrar_proveedores
 from modulos.COMPRAS import mostrar_compras
 from modulos.USUARIOS import mostrar_usuarios
 from modulos.PORTAL_PACIENTE import mostrar_portal_paciente
+from modulos.RESENAS import mostrar_resenas_admin
 
 # ==========================================
 # CONFIGURACIÓN DE LA APLICACIÓN
@@ -418,17 +419,10 @@ else:
 
 
     elif seleccion == "Reseñas":
-
         if rol_normalizado == "regente-administrador":
-
-            st.title(
-                "Reseñas de pacientes"
-            )
-
-            st.write(
-                "Consulta de opiniones "
-                "y calificaciones."
-            )
+            mostrar_resenas_admin()
+        else:
+            st.error("No tienes permiso para acceder a este módulo.")
 
     elif seleccion == "Usuarios y roles":
         if rol_normalizado == "regente-administrador":
@@ -436,19 +430,3 @@ else:
         else:
             st.error("No tienes permiso para acceder a este módulo.")
 
-    # --------------------------------------
-    # MÓDULOS PENDIENTES
-    # --------------------------------------
-
-    if seleccion in [
-        "Reseñas"
-    ]:
-
-        st.divider()
-
-        st.info(
-            "Esta sección está creada. "
-            "Sus formularios y conexión con "
-            "la base de datos se desarrollarán "
-            "posteriormente."
-        )
