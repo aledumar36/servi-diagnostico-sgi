@@ -217,14 +217,172 @@ def mostrar_inventario():
     # REGISTRAR ENTRADA
     # ==========================================
 
+    
     with tab3:
 
         st.subheader("Registrar entrada de producto")
 
-        st.info(
-            "Aquí registraremos las entradas "
-            "de productos al inventario."
-        )
+        conexion = None
+        cursor = None
+
+        try:
+            conexion = obtener_conexion()
+            cursor = conexion.cursor(dictionary=True)
+
+            cursor.execute("""
+                SELECT ID_Producto, Nombre, Marca
+                FROM Producto
+                ORDER BY Nombre
+            """)
+
+            productos = cursor.fetchall()
+
+            if not productos:
+                st.warning(
+                    "Primero debe registrar un producto."
+                )
+
+            else:
+
+                opciones_productos = {
+                    f"{p['ID_Producto']} - {p['Nombre']} ({p['Marca'] or 'Sin marca'})":
+                    p["ID_Producto"]
+                    for p in productos
+                }
+
+                with st.form("form_entrada_inventario"):
+
+                    producto = st.selectbox(
+                        "Producto *",
+                        list(opciones_productos.keys())
+                    )
+
+                    cantidad = st.number_input(
+                        "Cantidad recibida *",
+                        min_value=1.0,
+                        step=1.0
+                    )
+
+                    stock_minimo = st.number_input(
+                        "Stock mínimo",
+                        min_value=0.0,
+                        step=1.0
+                    )
+
+                    fecha_almacenado = st.date_input(
+                        "Fecha de almacenamiento",
+                        value=date.today()
+                    )
+
+                    tiene_vencimiento = st.checkbox(
+                        "El producto tiene fecha de vencimiento"
+                    )
+
+                    fecha_vencimiento = None
+
+                    if tiene_vencimiento:
+                        fecha_vencimiento = st.date_input(
+                            "Fecha de vencimiento",
+                            value=date.today()
+                        )
+
+                    motivo = st.text_input(
+                        "Motivo de entrada",
+                        value="Ingreso de producto"
+                    )
+
+                    guardar_entrada = st.form_submit_button(
+                        "Guardar entrada"
+                    )
+
+                if guardar_entrada:
+
+                    if (
+                        fecha_vencimiento is not None
+                        and fecha_vencimiento < fecha_almacenado
+                    ):
+                        st.warning(
+                            "La fecha de vencimiento no puede "
+                            "ser anterior a la de almacenamiento."
+                        )
+
+                    else:
+
+                        id_producto = opciones_productos[producto]
+
+                        usuario = st.session_state.get("usuario")
+
+                        if not usuario or not usuario.get("ID_User"):
+                            st.error(
+                                "No se encontró el usuario activo."
+                            )
+
+                        else:
+
+                            id_usuario = usuario["ID_User"]
+
+                            cursor.execute("""
+                                INSERT INTO Inventario
+                                (
+                                    ID_Producto,
+                                    ID_User,
+                                    Fecha_Almacenado,
+                                    Fecha_Vencimiento,
+                                    Stock_Minimo,
+                                    Cantidad
+                                )
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                            """, (
+                                id_producto,
+                                id_usuario,
+                                fecha_almacenado,
+                                fecha_vencimiento,
+                                stock_minimo,
+                                cantidad
+                            ))
+
+                            id_inventario = cursor.lastrowid
+
+                            cursor.execute("""
+                                INSERT INTO Movimiento_Inventario
+                                (
+                                    ID_Inventario,
+                                    ID_User,
+                                    Tipo_Movimiento,
+                                    Cantidad,
+                                    Motivo
+                                )
+                                VALUES (%s, %s, %s, %s, %s)
+                            """, (
+                                id_inventario,
+                                id_usuario,
+                                "Entrada",
+                                cantidad,
+                                motivo.strip() or "Ingreso de producto"
+                            ))
+
+                            conexion.commit()
+
+                            st.success(
+                                "Entrada registrada correctamente."
+                            )
+
+        except Exception as e:
+
+            if conexion:
+                conexion.rollback()
+
+            st.error(
+                f"Error al registrar entrada: {e}"
+            )
+
+        finally:
+
+            if cursor:
+                cursor.close()
+
+            if conexion:
+                conexion.close()
 
     # ==========================================
     # REGISTRAR SALIDA
