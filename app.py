@@ -7,6 +7,7 @@ from modulos.CITAS import mostrar_citas
 from modulos.BOLETAS import mostrar_boletas
 from modulos.RESULTADOS import mostrar_resultados
 from modulos.EXPEDIENTES import mostrar_expedientes
+from modulos.INVENTARIO import mostrar_inventario
 
 # ==========================================
 # CONFIGURACIÓN DE LA APLICACIÓN
@@ -401,17 +402,8 @@ else:
             st.error("No tienes permiso para acceder a este módulo.")
 
     elif seleccion == "Inventario":
-
         if rol_normalizado == "regente-administrador":
-
-            st.title(
-                "📦 Gestión de inventario"
-            )
-
-            st.write(
-                "Control de productos, "
-                "existencias y vencimientos."
-            )
+            mostrar_inventario()
 
     elif seleccion == "Compras y proveedores":
 
@@ -457,7 +449,6 @@ else:
     # --------------------------------------
 
     if seleccion in [
-        "Inventario",
         "Compras y proveedores",
         "Reseñas",
         "Usuarios y roles"
