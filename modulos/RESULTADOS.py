@@ -200,7 +200,7 @@ def mostrar_resultados():
     col_medico, col_directo = st.columns(2)
     for columna, grupo, titulo in (
         (col_medico, 'Con médico', '🩺 Con médico asociado'),
-        (col_directo, 'Sin médico', '🧪 "Servi-Diagnóstico"),
+        (col_directo, 'Sin médico', '🧪 Servi-Diagnóstico'),
     ):
         datos = totales.get(grupo, {})
         with columna:
@@ -214,7 +214,7 @@ def mostrar_resultados():
     st.divider()
     grupo_seleccionado = st.radio(
         'Origen de la solicitud',
-        ['Con médico asociado', 'Sin médico asociado'],
+        ['Con médico asociado', 'Servi-Diagnóstico'],
         horizontal=True,
         key='resultados_origen',
     )
