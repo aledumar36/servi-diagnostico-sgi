@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date
+from datetime import date, timedelta
 from config.conexion import obtener_conexion
 
 
@@ -94,6 +94,122 @@ def mostrar_inventario():
             if conexion:
                 conexion.close()
 
+
+            # ==========================================
+            # ALERTAS DE VENCIMIENTO
+            # ==========================================
+
+            st.subheader("Alertas de vencimiento")
+
+            hoy = date.today()
+            limite = hoy + timedelta(days=30)
+
+            vencidos = []
+            proximos = []
+            vigentes = []
+            sin_vencimiento = []
+
+            for producto in inventario:
+
+                fecha = producto["Fecha_Vencimiento"]
+
+                # No alertar sobre lotes agotados
+                if float(producto["Cantidad"]) <= 0:
+                    continue
+
+                if fecha is None:
+
+                    sin_vencimiento.append(producto)
+
+                else:
+
+                    # MySQL normalmente devuelve DATE
+                    # como objeto date de Python.
+                    if isinstance(fecha, str):
+                        fecha = date.fromisoformat(fecha)
+
+                    if fecha < hoy:
+
+                        vencidos.append(producto)
+
+                    elif fecha <= limite:
+
+                        proximos.append(producto)
+
+                    else:
+
+                        vigentes.append(producto)
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            col1.metric(
+                "Vencidos",
+                len(vencidos)
+            )
+
+            col2.metric(
+                "Próximos a vencer",
+                len(proximos)
+            )
+
+            col3.metric(
+                "Vigentes",
+                len(vigentes)
+            )
+
+            col4.metric(
+                "Sin vencimiento",
+                len(sin_vencimiento)
+            )
+
+            # Productos vencidos
+            if vencidos:
+
+                st.error(
+                    "Hay productos vencidos "
+                    "con existencias disponibles."
+                )
+
+                for producto in vencidos:
+
+                    st.write(
+                        f"🔴 {producto['Producto']} "
+                        f"— Venció el "
+                        f"{producto['Fecha_Vencimiento']} "
+                        f"— Cantidad: {producto['Cantidad']}"
+                    )
+
+            # Productos próximos a vencer
+            if proximos:
+
+                st.warning(
+                    "Hay productos que vencen "
+                    "en los próximos 30 días."
+                )
+
+                for producto in proximos:
+
+                    fecha = producto["Fecha_Vencimiento"]
+
+                    if isinstance(fecha, str):
+                        fecha = date.fromisoformat(fecha)
+
+                    dias = (fecha - hoy).days
+
+                    st.write(
+                        f"🟠 {producto['Producto']} "
+                        f"— Vence el {fecha} "
+                        f"— Faltan {dias} días "
+                        f"— Cantidad: {producto['Cantidad']}"
+                    )
+
+            if not vencidos and not proximos:
+
+                st.success(
+                    "No hay productos vencidos "
+                    "ni próximos a vencer."
+                )
+    
     # ==========================================
     # REGISTRAR PRODUCTO
     # ==========================================
