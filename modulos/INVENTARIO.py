@@ -15,7 +15,7 @@ def mostrar_inventario():
         "Consultar inventario",
         "Registrar producto",
         "Registrar entrada",
-        "Registrar salida"
+        "Registrar salida",
         "Editar inventario"
     ])
 
