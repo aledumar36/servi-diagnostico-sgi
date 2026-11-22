@@ -167,34 +167,109 @@ def quitar_asociacion(id_examen, id_archivo):
 
 def mostrar_resultados():
     st.title('🧪 Resultados de exámenes')
-    st.caption('Carga, consulta y corrección de documentos de resultados.')
+    st.caption('Control de pendientes, carga y consulta de resultados por origen de la solicitud.')
+
+    usuario = st.session_state.get('usuario', {})
+    rol = str(usuario.get('Rol', '')).strip().lower() if isinstance(usuario, dict) else ''
+    if not st.session_state.get('autenticado') or rol not in ('regente-administrador', 'secretario'):
+        st.error('No tenés permiso para acceder a este módulo.')
+        return
 
     id_usuario = obtener_usuario()
     if not id_usuario:
         st.error('No se pudo identificar al usuario. Cerrá sesión e ingresá nuevamente.')
         return
 
+    # Contamos exámenes, no boletas: una boleta puede incluir varias pruebas.
     try:
-        boletas = consultar('''
-            SELECT B.ID_Boleta, B.Fecha_Solicitud, P.Nombre_Completo
+        resumen = consultar("""
+            SELECT
+                CASE WHEN B.ID_Medico IS NULL THEN 'Sin médico' ELSE 'Con médico' END AS Grupo,
+                COUNT(E.ID_Examen) AS Total,
+                SUM(CASE WHEN E.Estado = 'Pendiente' THEN 1 ELSE 0 END) AS Pendientes,
+                SUM(CASE WHEN E.Estado = 'Resultado cargado' THEN 1 ELSE 0 END) AS Cargados
             FROM Boleta_Examen B
-            JOIN Paciente P ON P.ID_Paciente = B.ID_Paciente
-            ORDER BY B.ID_Boleta DESC LIMIT 200
-        ''')
+            INNER JOIN Examen E ON E.ID_Boleta = B.ID_Boleta
+            GROUP BY CASE WHEN B.ID_Medico IS NULL THEN 'Sin médico' ELSE 'Con médico' END
+        """)
+    except Exception as error:
+        st.error(f'No se pudo consultar el resumen de exámenes: {error}')
+        return
+
+    totales = {r['Grupo']: r for r in resumen}
+    col_medico, col_directo = st.columns(2)
+    for columna, grupo, titulo in (
+        (col_medico, 'Con médico', '🩺 Con médico asociado'),
+        (col_directo, 'Sin médico', '🧪 Sin médico asociado'),
+    ):
+        datos = totales.get(grupo, {})
+        with columna:
+            st.markdown(f'**{titulo}**')
+            st.metric('Exámenes pendientes', int(datos.get('Pendientes') or 0))
+            st.caption(
+                f"Resultados cargados: {int(datos.get('Cargados') or 0)} · "
+                f"Total de exámenes: {int(datos.get('Total') or 0)}"
+            )
+
+    st.divider()
+    grupo_seleccionado = st.radio(
+        'Origen de la solicitud',
+        ['Con médico asociado', 'Sin médico asociado'],
+        horizontal=True,
+        key='resultados_origen',
+    )
+    con_medico = grupo_seleccionado == 'Con médico asociado'
+    filtro_medico = 'B.ID_Medico IS NOT NULL' if con_medico else 'B.ID_Medico IS NULL'
+
+    try:
+        boletas = consultar(f"""
+            SELECT B.ID_Boleta, B.Fecha_Solicitud, B.ID_Paciente,
+                   P.Nombre_Completo, P.Fecha_Nacimiento,
+                   M.Nombre AS Nombre_Medico, M.Apellido AS Apellido_Medico,
+                   COUNT(E.ID_Examen) AS Total_Examenes,
+                   SUM(CASE WHEN E.Estado = 'Pendiente' THEN 1 ELSE 0 END) AS Pendientes
+            FROM Boleta_Examen B
+            INNER JOIN Paciente P ON P.ID_Paciente = B.ID_Paciente
+            LEFT JOIN Medico M ON M.ID_Medico = B.ID_Medico
+            LEFT JOIN Examen E ON E.ID_Boleta = B.ID_Boleta
+            WHERE {filtro_medico}
+            GROUP BY B.ID_Boleta, B.Fecha_Solicitud, B.ID_Paciente,
+                     P.Nombre_Completo, P.Fecha_Nacimiento, M.Nombre, M.Apellido
+            ORDER BY B.ID_Boleta DESC
+            LIMIT 200
+        """)
     except Exception as error:
         st.error(f'No se pudieron cargar las boletas: {error}')
         return
 
     if not boletas:
-        st.info('Primero registrá una boleta de examen.')
+        st.info('No hay boletas registradas en esta categoría.')
         return
 
-    opciones_boletas = {
-        f"Boleta #{b['ID_Boleta']} — {b['Nombre_Completo']} ({b['Fecha_Solicitud']})": b['ID_Boleta']
-        for b in boletas
-    }
+    solo_pendientes = st.checkbox('Mostrar solo boletas con exámenes pendientes', key='resultados_solo_pendientes')
+    if solo_pendientes:
+        boletas = [b for b in boletas if int(b['Pendientes'] or 0) > 0]
+    if not boletas:
+        st.info('No hay boletas pendientes en las últimas 200 boletas de esta categoría.')
+        return
+
+    opciones_boletas = {}
+    for b in boletas:
+        nacimiento = b['Fecha_Nacimiento']
+        nacimiento_texto = nacimiento.strftime('%d/%m/%Y') if hasattr(nacimiento, 'strftime') else str(nacimiento or 'No registrada')
+        medico_texto = ''
+        if con_medico:
+            medico_texto = f" · Médico: {b['Nombre_Medico'] or ''} {b['Apellido_Medico'] or ''}"
+        etiqueta = (
+            f"Boleta #{b['ID_Boleta']} · P-{b['ID_Paciente']:06d} · "
+            f"{b['Nombre_Completo']} · Nac.: {nacimiento_texto} · "
+            f"Pendientes: {int(b['Pendientes'] or 0)}{medico_texto}"
+        )
+        opciones_boletas[etiqueta] = b['ID_Boleta']
+
     seleccion = st.selectbox('Seleccionar boleta', list(opciones_boletas), key='resultados_boleta')
     id_boleta = opciones_boletas[seleccion]
+    st.caption('El estado se obtiene de la tabla Examen. Las boletas sin exámenes registrados no se contabilizan como pendientes.')
 
     try:
         examenes = obtener_examenes(id_boleta)
