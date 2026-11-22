@@ -397,12 +397,15 @@ def mostrar_resultados():
                 help='Máximo 10 MB por archivo. Podés cargar varios archivos para un mismo examen.'
             )
             fecha_realizacion = st.date_input('Fecha de realización de los exámenes', value=date.today())
+            confirmado = st.checkbox('Confirmo que los archivos ya fueron revisados, firmados y sellados por el regente del laboratorio.')
             enviar = st.form_submit_button('💾 Guardar resultados', use_container_width=True)
         if enviar:
             if not seleccionados:
                 st.error('Seleccioná al menos un examen.')
             elif not archivos:
                 st.error('Adjuntá al menos un archivo.')
+            elif not confirmado:
+                st.error('Debés confirmar que los resultados están firmados y sellados antes de cargarlos.')
             else:
                 ids = [opciones_examenes[etiqueta] for etiqueta in seleccionados]
                 correcto, mensaje = guardar_resultados(id_boleta, ids, archivos, id_usuario, fecha_realizacion)
