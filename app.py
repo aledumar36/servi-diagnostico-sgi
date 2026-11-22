@@ -8,6 +8,7 @@ from modulos.BOLETAS import mostrar_boletas
 from modulos.RESULTADOS import mostrar_resultados
 from modulos.EXPEDIENTES import mostrar_expedientes
 from modulos.INVENTARIO import mostrar_inventario
+from modulos.PROVEEDORES import mostrar_proveedores
 
 # ==========================================
 # CONFIGURACIÓN DE LA APLICACIÓN
@@ -406,9 +407,8 @@ else:
             mostrar_inventario()
 
     elif seleccion == "Compras y proveedores":
-
         if rol_normalizado == "regente-administrador":
-
+            mostrar_proveedores()
             st.title(
                 "Compras y proveedores"
             )
