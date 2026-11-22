@@ -274,17 +274,22 @@ def mostrar_inventario():
                         value=date.today()
                     )
 
+
                     tiene_vencimiento = st.checkbox(
-                        "El producto tiene fecha de vencimiento"
+                        "El producto tiene fecha de vencimiento",
+                        value=True
                     )
 
-                    fecha_vencimiento = None
+                    fecha_vencimiento = st.date_input(
+                        "Fecha de vencimiento",
+                        value=date.today(),
+                        min_value=date(2000, 1, 1),
+                        max_value=date(2100, 12, 31),
+                        disabled=not tiene_vencimiento
+                    )
 
-                    if tiene_vencimiento:
-                        fecha_vencimiento = st.date_input(
-                            "Fecha de vencimiento",
-                            value=date.today()
-                        )
+                    if not tiene_vencimiento:
+                        fecha_vencimiento = None
 
                     motivo = st.text_input(
                         "Motivo de entrada",
