@@ -1,6 +1,6 @@
 import os
 import uuid
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import streamlit as st
@@ -235,8 +235,7 @@ def mostrar_resultados():
             WHERE {filtro_medico}
             GROUP BY B.ID_Boleta, B.Fecha_Solicitud, B.ID_Paciente,
                      P.Nombre_Completo, P.Fecha_Nacimiento, M.Nombre, M.Apellido
-            ORDER BY B.ID_Boleta DESC
-            LIMIT 200
+            ORDER BY B.Fecha_Solicitud ASC, B.ID_Boleta ASC
         """)
     except Exception as error:
         st.error(f'No se pudieron cargar las boletas: {error}')
@@ -246,11 +245,64 @@ def mostrar_resultados():
         st.info('No hay boletas registradas en esta categoría.')
         return
 
-    solo_pendientes = st.checkbox('Mostrar solo boletas con exámenes pendientes', key='resultados_solo_pendientes')
+    # Antigüedad desde la fecha de solicitud hasta la fecha actual.
+    # Una boleta cuenta como pendiente si tiene al menos un examen pendiente.
+    def fecha_comparable(valor):
+        if isinstance(valor, datetime):
+            return valor.date()
+        if isinstance(valor, date):
+            return valor
+        if isinstance(valor, str):
+            try:
+                return datetime.fromisoformat(valor).date()
+            except ValueError:
+                return None
+        return None
+
+    hoy = date.today()
+    for boleta in boletas:
+        fecha = fecha_comparable(boleta['Fecha_Solicitud'])
+        boleta['Dias_Espera'] = max(0, (hoy - fecha).days) if fecha else None
+
+    pendientes = [b for b in boletas if int(b['Pendientes'] or 0) > 0]
+    st.subheader('Antigüedad de solicitudes')
+    if pendientes:
+        mas_antigua = min(
+            pendientes,
+            key=lambda b: (fecha_comparable(b['Fecha_Solicitud']) or date.max, b['ID_Boleta'])
+        )
+        fecha_antigua = fecha_comparable(mas_antigua['Fecha_Solicitud'])
+        col_espera, col_boleta = st.columns(2)
+        col_espera.metric('Mayor tiempo pendiente', f"{mas_antigua['Dias_Espera']} días" if mas_antigua['Dias_Espera'] is not None else 'Sin fecha')
+        col_boleta.metric('Boleta pendiente más antigua', f"#{mas_antigua['ID_Boleta']}")
+        st.caption(
+            f"Paciente: P-{mas_antigua['ID_Paciente']:06d} · {mas_antigua['Nombre_Completo']} · "
+            f"Solicitud: {fecha_antigua.strftime('%d/%m/%Y') if fecha_antigua else 'Sin fecha'} · "
+            f"Exámenes pendientes: {int(mas_antigua['Pendientes'])}"
+        )
+    else:
+        st.success('No hay exámenes pendientes en esta categoría.')
+
+    orden = st.radio(
+        'Ordenar solicitudes',
+        ['Más antiguas primero', 'Más recientes primero'],
+        horizontal=True,
+        key='resultados_orden',
+    )
+    solo_pendientes = st.checkbox(
+        'Mostrar solo boletas con exámenes pendientes',
+        value=True,
+        key='resultados_solo_pendientes',
+    )
     if solo_pendientes:
-        boletas = [b for b in boletas if int(b['Pendientes'] or 0) > 0]
+        boletas = pendientes
+    boletas = sorted(
+        boletas,
+        key=lambda b: (fecha_comparable(b['Fecha_Solicitud']) or date.max, b['ID_Boleta']),
+        reverse=(orden == 'Más recientes primero'),
+    )
     if not boletas:
-        st.info('No hay boletas pendientes en las últimas 200 boletas de esta categoría.')
+        st.info('No hay boletas que cumplan el filtro seleccionado.')
         return
 
     opciones_boletas = {}
@@ -263,6 +315,7 @@ def mostrar_resultados():
         etiqueta = (
             f"Boleta #{b['ID_Boleta']} · P-{b['ID_Paciente']:06d} · "
             f"{b['Nombre_Completo']} · Nac.: {nacimiento_texto} · "
+            f"Espera: {b['Dias_Espera']} días · "
             f"Pendientes: {int(b['Pendientes'] or 0)}{medico_texto}"
         )
         opciones_boletas[etiqueta] = b['ID_Boleta']
