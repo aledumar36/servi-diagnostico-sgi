@@ -199,19 +199,63 @@ def mostrar_expedientes():
                         st.success("Atendida")
 
         with tab_historial:
-            # Solo se muestran pacientes con cita vinculada a este médico.
+            st.subheader("Buscar historial de pacientes")
+            st.caption(
+                "Buscá por código (por ejemplo P-000025), nombre completo o DUI. "
+                "Solo se muestran pacientes vinculados a tus citas o solicitudes de exámenes."
+            )
+            busqueda = st.text_input(
+                "Buscar paciente",
+                placeholder="Código, nombre o DUI",
+                key="buscar_paciente_historial_medico",
+            ).strip()
+
+            # Incluir pacientes con citas y también con boletas asociadas al médico.
+            # Nunca listar pacientes ajenos al médico autenticado.
             cursor.execute("""
-                SELECT DISTINCT P.ID_Paciente, P.Nombre_Completo, P.Fecha_Nacimiento
+                SELECT P.ID_Paciente, P.Nombre_Completo, P.Fecha_Nacimiento, P.DUI
                 FROM Paciente P
-                INNER JOIN Cita C ON C.ID_Paciente = P.ID_Paciente
-                WHERE C.ID_Medico = %s
-                ORDER BY P.Nombre_Completo
-            """, (id_medico,))
+                WHERE EXISTS (
+                    SELECT 1 FROM Cita C
+                    WHERE C.ID_Paciente = P.ID_Paciente AND C.ID_Medico = %s
+                )
+                OR EXISTS (
+                    SELECT 1 FROM Boleta_Examen B
+                    WHERE B.ID_Paciente = P.ID_Paciente
+                      AND (
+                          B.ID_Medico = %s
+                          OR EXISTS (
+                              SELECT 1 FROM Cita C2
+                              WHERE C2.ID_Cita = B.ID_Cita
+                                AND C2.ID_Paciente = B.ID_Paciente
+                                AND C2.ID_Medico = %s
+                          )
+                      )
+                )
+                ORDER BY P.Nombre_Completo, P.Fecha_Nacimiento, P.ID_Paciente
+            """, (id_medico, id_medico, id_medico))
             pacientes = cursor.fetchall()
-            if not pacientes:
-                st.info("No tenés pacientes vinculados por citas.")
+
+            def coincide_busqueda(paciente, texto):
+                if not texto:
+                    return True
+                codigo = f"P-{int(paciente['ID_Paciente']):06d}"
+                campos = (
+                    codigo,
+                    str(paciente['ID_Paciente']),
+                    paciente['Nombre_Completo'] or "",
+                    paciente.get('DUI') or "",
+                )
+                return any(texto.casefold() in str(campo).casefold() for campo in campos)
+
+            pacientes_filtrados = [
+                p for p in pacientes if coincide_busqueda(p, busqueda)
+            ]
+            st.caption(f"Pacientes encontrados: {len(pacientes_filtrados)}")
+            if not pacientes_filtrados:
+                st.info("No se encontraron pacientes vinculados con esa búsqueda.")
             else:
-                pacientes_por_id = {p["ID_Paciente"]: p for p in pacientes}
+                pacientes_por_id = {p["ID_Paciente"]: p for p in pacientes_filtrados}
                 id_paciente = st.selectbox(
                     "Paciente",
                     list(pacientes_por_id),
