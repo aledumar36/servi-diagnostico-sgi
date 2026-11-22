@@ -200,7 +200,7 @@ def mostrar_resultados():
     col_medico, col_directo = st.columns(2)
     for columna, grupo, titulo in (
         (col_medico, 'Con médico', '🩺 Con médico asociado'),
-        (col_directo, 'Sin médico', '🧪 Sin médico asociado'),
+        (col_directo, 'Sin médico', '🧪 "Servi-Diagnóstico"),
     ):
         datos = totales.get(grupo, {})
         with columna:
