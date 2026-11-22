@@ -391,18 +391,271 @@ def mostrar_inventario():
                 conexion.close()
 
     # ==========================================
-    # REGISTRAR SALIDA
+    # REGISTRAR SALIDA DE INVENTARIO
     # ==========================================
 
     with tab4:
 
         st.subheader("Registrar salida de producto")
 
-        st.info(
-            "Aquí registraremos las salidas "
-            "de productos del inventario."
+        st.write(
+            "Registre los materiales o reactivos "
+            "retirados del inventario."
         )
 
+        conexion = None
+        cursor = None
+
+        try:
+
+            conexion = obtener_conexion()
+            cursor = conexion.cursor(dictionary=True)
+
+            cursor.execute("""
+                SELECT
+                    I.ID_Inventario,
+                    P.Nombre AS Producto,
+                    P.Marca,
+                    I.Cantidad,
+                    I.Fecha_Vencimiento
+                FROM Inventario I
+                INNER JOIN Producto P
+                    ON I.ID_Producto = P.ID_Producto
+                WHERE I.Cantidad > 0
+                ORDER BY P.Nombre, I.Fecha_Vencimiento
+            """)
+
+            registros = cursor.fetchall()
+
+            if not registros:
+
+                st.info(
+                    "No hay productos con existencias "
+                    "disponibles para retirar."
+                )
+
+            else:
+
+                opciones = {}
+
+                for r in registros:
+
+                    vencimiento = (
+                        str(r["Fecha_Vencimiento"])
+                        if r["Fecha_Vencimiento"]
+                        else "Sin vencimiento"
+                    )
+
+                    etiqueta = (
+                        f"#{r['ID_Inventario']} - "
+                        f"{r['Producto']} "
+                        f"({r['Marca'] or 'Sin marca'}) | "
+                        f"Disponible: {r['Cantidad']} | "
+                        f"Vence: {vencimiento}"
+                    )
+
+                    opciones[etiqueta] = r
+
+                with st.form("form_salida_inventario"):
+
+                    seleccionado = st.selectbox(
+                        "Seleccione el producto *",
+                        list(opciones.keys())
+                    )
+
+                    registro = opciones[seleccionado]
+
+                    st.info(
+                        f"Cantidad disponible: "
+                        f"{registro['Cantidad']}"
+                    )
+
+                    cantidad_salida = st.number_input(
+                        "Cantidad a retirar *",
+                        min_value=0.01,
+                        step=1.0,
+                        value=1.0
+                    )
+
+                    motivo = st.selectbox(
+                        "Motivo de salida *",
+                        [
+                            "Uso en el laboratorio",
+                            "Producto vencido",
+                            "Producto dañado",
+                            "Devolución",
+                            "Otro"
+                        ]
+                    )
+
+                    observaciones = st.text_area(
+                        "Observaciones",
+                        placeholder=(
+                            "Ej. Material utilizado "
+                            "en el área de hematología"
+                        )
+                    )
+
+                    confirmar = st.checkbox(
+                        "Confirmo que la cantidad "
+                        "y el producto son correctos"
+                    )
+
+                    guardar_salida = st.form_submit_button(
+                        "Registrar salida",
+                        type="primary"
+                    )
+
+                if guardar_salida:
+
+                    if not confirmar:
+
+                        st.warning(
+                            "Debe confirmar la salida."
+                        )
+
+                    else:
+
+                        usuario = st.session_state.get(
+                            "usuario", {}
+                        )
+
+                        id_usuario = usuario.get("ID_User")
+
+                        if not id_usuario:
+
+                            st.error(
+                                "No se identificó al usuario."
+                            )
+
+                        else:
+
+                            id_inventario = registro[
+                                "ID_Inventario"
+                            ]
+
+                            # Bloquear registro para evitar
+                            # retiros simultáneos incorrectos.
+                            cursor.execute("""
+                                SELECT Cantidad
+                                FROM Inventario
+                                WHERE ID_Inventario = %s
+                                FOR UPDATE
+                            """, (id_inventario,))
+
+                            actual = cursor.fetchone()
+
+                            if actual is None:
+
+                                conexion.rollback()
+
+                                st.error(
+                                    "El registro de inventario "
+                                    "ya no existe."
+                                )
+
+                            elif (
+                                float(actual["Cantidad"])
+                                < cantidad_salida
+                            ):
+
+                                conexion.rollback()
+
+                                st.error(
+                                    "La cantidad solicitada "
+                                    "supera las existencias "
+                                    "disponibles."
+                                )
+
+                            else:
+
+                                cantidad_anterior = float(
+                                    actual["Cantidad"]
+                                )
+
+                                nueva_cantidad = round(
+                                    cantidad_anterior
+                                    - cantidad_salida,
+                                    2
+                                )
+
+                                cursor.execute("""
+                                    UPDATE Inventario
+                                    SET Cantidad = %s
+                                    WHERE ID_Inventario = %s
+                                """, (
+                                    nueva_cantidad,
+                                    id_inventario
+                                ))
+
+                                descripcion = motivo
+
+                                if observaciones.strip():
+
+                                    descripcion += (
+                                        " | "
+                                        + observaciones.strip()
+                                    )
+
+                                cursor.execute("""
+                                    INSERT INTO
+                                        Movimiento_Inventario
+                                    (
+                                        ID_Inventario,
+                                        ID_User,
+                                        Tipo_Movimiento,
+                                        Cantidad,
+                                        Motivo
+                                    )
+                                    VALUES (
+                                        %s, %s, %s, %s, %s
+                                    )
+                                """, (
+                                    id_inventario,
+                                    id_usuario,
+                                    "Salida",
+                                    cantidad_salida,
+                                    descripcion[:255]
+                                ))
+
+                                conexion.commit()
+
+                                st.success(
+                                    "Salida registrada "
+                                    "correctamente."
+                                )
+
+                                st.write(
+                                    f"Existencias anteriores: "
+                                    f"{cantidad_anterior:g}"
+                                )
+
+                                st.write(
+                                    f"Cantidad retirada: "
+                                    f"{cantidad_salida:g}"
+                                )
+
+                                st.write(
+                                    f"Existencias actuales: "
+                                    f"{nueva_cantidad:g}"
+                                )
+
+        except Exception as e:
+
+            if conexion:
+                conexion.rollback()
+
+            st.error(
+                f"Error al registrar salida: {e}"
+            )
+
+        finally:
+
+            if cursor:
+                cursor.close()
+
+            if conexion:
+                conexion.close()
 
     # ==========================================
     # EDITAR INVENTARIO
