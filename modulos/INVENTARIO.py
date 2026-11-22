@@ -12,12 +12,13 @@ def mostrar_inventario():
         "y movimientos de productos."
     )
 
-    tab1, tab2, tab3 = st.tabs([
-        "Consultar inventario",
-        "Registrar entrada",
-        "Registrar salida"
-    ])
-
+    tab1, tab2, tab3, tab4 = st.tabs([
+    "Consultar inventario",
+    "Registrar producto",
+    "Registrar entrada",
+    "Registrar salida"
+])
+  
     # ==========================================
     # CONSULTAR INVENTARIO
     # ==========================================
@@ -91,13 +92,12 @@ def mostrar_inventario():
                 cursor.close()
             if conexion:
                 conexion.close()
-
+    
     # ==========================================
     # REGISTRAR ENTRADA
     # ==========================================
 
-    with tab2:
-
+      with tab3:
         st.subheader("Registrar entrada de producto")
 
         st.info(
@@ -109,8 +109,7 @@ def mostrar_inventario():
     # REGISTRAR SALIDA
     # ==========================================
 
-    with tab3:
-
+    with tab4:
         st.subheader("Registrar salida de producto")
 
         st.info(
