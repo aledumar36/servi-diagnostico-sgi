@@ -1,6 +1,6 @@
 """Órdenes de compra de Servi-Diagnóstico (prototipo)."""
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import streamlit as st
 from config.conexion import obtener_conexion
 
@@ -36,7 +36,7 @@ def mostrar_compras():
         st.error(f'No se pudieron cargar los catálogos: {error}')
         return
 
-    tab_registro, tab_historial = st.tabs(['Registrar orden', 'Consultar órdenes'])
+    tab_registro, tab_historial, tab_recepcion = st.tabs(['Registrar orden', 'Consultar órdenes', 'Recepción de compras'])
     with tab_registro:
         if not proveedores or not productos:
             st.warning('Registrá al menos un proveedor y un producto antes de crear órdenes.')
@@ -49,12 +49,7 @@ def mostrar_compras():
                 proveedor = st.selectbox('Proveedor *', list(opciones_proveedor))
                 concepto = st.text_input('Concepto (opcional)', max_chars=255)
                 fecha_pedido = st.date_input('Fecha del pedido', value=date.today())
-                fecha_entrega = st.date_input(
-                    'Fecha estimada de entrega (opcional)',
-                    value=None,
-                    min_value=fecha_pedido,
-                    format='DD/MM/YYYY'
-                    )
+                fecha_entrega = st.date_input('Fecha estimada de entrega (opcional)', value=None, min_value=fecha_pedido, format='DD/MM/YYYY')
                 lineas = []
                 for i in range(int(cantidad_lineas)):
                     st.markdown(f'**Producto {i+1}**')
@@ -126,3 +121,133 @@ def mostrar_compras():
                 st.dataframe(detalles, use_container_width=True, hide_index=True)
         except Exception as error:
             st.error(f'No se pudieron consultar las órdenes: {error}')
+
+
+    # ==========================================================
+    # RECEPCIÓN PARCIAL O TOTAL DE PRODUCTOS
+    # ==========================================================
+    with tab_recepcion:
+        st.subheader('📥 Recepción de compras')
+        st.caption('Las existencias solo aumentan al confirmar una recepción. Podés recibir una orden en varias entregas.')
+        try:
+            pendientes = _leer("""
+                SELECT O.ID_Compra, O.Fecha_Pedido, P.Nombre_Completo AS Proveedor,
+                       D.ID_DetalleCompra, D.ID_Producto, PR.Nombre AS Producto,
+                       D.Cantidad AS Pedida,
+                       COALESCE((SELECT SUM(M.Cantidad)
+                                 FROM Inventario I
+                                 JOIN Movimiento_Inventario M ON M.ID_Inventario = I.ID_Inventario
+                                 WHERE I.ID_DetalleCompra = D.ID_DetalleCompra
+                                   AND M.Tipo_Movimiento = 'Entrada'), 0) AS Recibida
+                FROM Orden_Compra O
+                JOIN Proveedor P ON P.ID_Proveedor = O.ID_Proveedor
+                JOIN Detalle_Compra D ON D.ID_Compra = O.ID_Compra
+                JOIN Producto PR ON PR.ID_Producto = D.ID_Producto
+                ORDER BY O.ID_Compra DESC, D.ID_DetalleCompra
+            """)
+        except Exception as error:
+            st.error(f'No se pudieron consultar las compras: {error}')
+            return
+
+        if not pendientes:
+            st.info('Todavía no hay órdenes de compra.')
+        else:
+            por_orden = {}
+            for item in pendientes:
+                por_orden.setdefault(item['ID_Compra'], []).append(item)
+            etiquetas = {
+                f"Orden #{id_compra} · {items[0]['Proveedor']}": id_compra
+                for id_compra, items in por_orden.items()
+            }
+            orden_elegida = st.selectbox('Seleccionar orden de compra', list(etiquetas), key='recepcion_orden')
+            id_compra = etiquetas[orden_elegida]
+            detalles = por_orden[id_compra]
+            filas = []
+            for item in detalles:
+                pedida = Decimal(str(item['Pedida']))
+                recibida = Decimal(str(item['Recibida']))
+                faltante = max(Decimal('0'), pedida - recibida)
+                filas.append({
+                    'Producto': item['Producto'], 'Pedido': float(pedida),
+                    'Recibido': float(recibida), 'Pendiente': float(faltante)
+                })
+            st.dataframe(filas, use_container_width=True, hide_index=True)
+
+            disponibles = [i for i in detalles if Decimal(str(i['Pedida'])) > Decimal(str(i['Recibida']))]
+            if not disponibles:
+                st.success('Esta orden ya está recibida completamente.')
+            else:
+                opciones = {
+                    f"{i['Producto']} · Pendiente: {Decimal(str(i['Pedida'])) - Decimal(str(i['Recibida'])):.2f}": i['ID_DetalleCompra']
+                    for i in disponibles
+                }
+                with st.form('form_recepcion_compra'):
+                    producto_seleccionado = st.selectbox('Producto que llegó', list(opciones))
+                    cantidad = st.number_input('Cantidad recibida', min_value=0.01, value=1.0, step=1.0, format='%.2f')
+                    fecha_recepcion = st.date_input('Fecha de recepción / almacenamiento', value=date.today())
+                    fecha_vencimiento = st.date_input('Fecha de vencimiento (opcional)', value=None, format='DD/MM/YYYY')
+                    stock_minimo = st.number_input('Stock mínimo para este lote', min_value=0.0, value=0.0, step=1.0, format='%.2f')
+                    confirmar_recepcion = st.checkbox('Confirmo que esta cantidad fue recibida físicamente')
+                    guardar_recepcion = st.form_submit_button('📦 Registrar recepción', use_container_width=True)
+
+                if guardar_recepcion:
+                    id_detalle = opciones[producto_seleccionado]
+                    cantidad_decimal = Decimal(str(cantidad)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    if not confirmar_recepcion:
+                        st.error('Confirmá la recepción física del producto.')
+                    elif fecha_vencimiento and fecha_vencimiento < fecha_recepcion:
+                        st.error('El vencimiento no puede ser anterior a la fecha de recepción.')
+                    else:
+                        conexion = None
+                        cursor = None
+                        try:
+                            conexion = obtener_conexion()
+                            cursor = conexion.cursor(dictionary=True)
+                            conexion.start_transaction()
+                            # Bloquear el detalle impide que dos recepciones simultáneas
+                            # superen la cantidad pedida.
+                            cursor.execute("""
+                                SELECT ID_Producto, Cantidad FROM Detalle_Compra
+                                WHERE ID_DetalleCompra = %s AND ID_Compra = %s FOR UPDATE
+                            """, (id_detalle, id_compra))
+                            detalle = cursor.fetchone()
+                            if not detalle:
+                                raise ValueError('El detalle de compra ya no existe.')
+                            cursor.execute("""
+                                SELECT COALESCE(SUM(M.Cantidad), 0) AS Recibido
+                                FROM Inventario I
+                                JOIN Movimiento_Inventario M ON M.ID_Inventario = I.ID_Inventario
+                                WHERE I.ID_DetalleCompra = %s
+                                  AND M.Tipo_Movimiento = 'Entrada'
+                            """, (id_detalle,))
+                            recibido = Decimal(str(cursor.fetchone()['Recibido']))
+                            pedido = Decimal(str(detalle['Cantidad']))
+                            faltante = pedido - recibido
+                            if cantidad_decimal <= 0 or cantidad_decimal > faltante:
+                                raise ValueError(f'La cantidad supera lo pendiente ({faltante:.2f}). Actualizá la página y verificá.')
+                            cursor.execute("""
+                                INSERT INTO Inventario
+                                  (ID_Producto, ID_User, ID_DetalleCompra, Fecha_Almacenado,
+                                   Fecha_Vencimiento, Stock_Minimo, Cantidad)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """, (detalle['ID_Producto'], id_user, id_detalle,
+                                  fecha_recepcion, fecha_vencimiento, Decimal(str(stock_minimo)), cantidad_decimal))
+                            id_inventario = cursor.lastrowid
+                            cursor.execute("""
+                                INSERT INTO Movimiento_Inventario
+                                  (ID_Inventario, ID_User, Tipo_Movimiento, Cantidad, Motivo)
+                                VALUES (%s, %s, %s, %s, %s)
+                            """, (id_inventario, id_user, 'Entrada', cantidad_decimal,
+                                  f'Recepción de orden de compra #{id_compra}'))
+                            conexion.commit()
+                            st.success(f'Recepción registrada: {cantidad_decimal:.2f} unidades. Pendientes: {faltante-cantidad_decimal:.2f}.')
+                            st.rerun()
+                        except Exception as error:
+                            if conexion:
+                                conexion.rollback()
+                            st.error(f'No se pudo registrar la recepción: {error}')
+                        finally:
+                            if cursor:
+                                cursor.close()
+                            if conexion:
+                                conexion.close()
