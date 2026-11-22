@@ -1,5 +1,5 @@
 import streamlit as st
-import hashlib
+from modulos.SEGURIDAD import crear_hash, verificar_contrasena
 
 from config.conexion import obtener_conexion
 from modulos.PACIENTES import mostrar_pacientes
@@ -9,6 +9,7 @@ from modulos.RESULTADOS import mostrar_resultados
 from modulos.EXPEDIENTES import mostrar_expedientes
 from modulos.INVENTARIO import mostrar_inventario
 from modulos.PROVEEDORES import mostrar_proveedores
+from modulos.USUARIOS import mostrar_usuarios
 
 # ==========================================
 # CONFIGURACIÓN DE LA APLICACIÓN
@@ -34,33 +35,27 @@ def iniciar_sesion(usuario, contrasena):
         conexion = obtener_conexion()
         cursor = conexion.cursor(dictionary=True)
 
-        contrasena_hash = hashlib.sha256(
-            contrasena.encode()
-        ).hexdigest()
-
-        consulta = """
-            SELECT
-                U.ID_User,
-                U.ID_Medico,
-                U.ID_Paciente,
-                U.Nombre,
-                U.Apellido,
-                U.Usuario,
-                R.Nombre AS Rol
+        cursor.execute("""
+            SELECT U.ID_User, U.ID_Medico, U.ID_Paciente, U.Nombre,
+                   U.Apellido, U.Usuario, U.Contrasena, R.Nombre AS Rol
             FROM Usuario_Sistema U
-            INNER JOIN Rol R
-                ON U.ID_Rol = R.ID_Rol
-            WHERE U.Usuario = %s
-              AND U.Contrasena = %s
-              AND U.Estado = 'Activo'
-        """
-
-        cursor.execute(
-            consulta,
-            (usuario, contrasena_hash)
-        )
-
-        return cursor.fetchone()
+            INNER JOIN Rol R ON U.ID_Rol = R.ID_Rol
+            WHERE U.Usuario = %s AND U.Estado = 'Activo'
+        """, (usuario,))
+        resultado = cursor.fetchone()
+        if not resultado:
+            return None
+        valido, migrar = verificar_contrasena(contrasena, resultado['Contrasena'])
+        if not valido:
+            return None
+        if migrar:
+            cursor.execute(
+                "UPDATE Usuario_Sistema SET Contrasena=%s WHERE ID_User=%s AND Contrasena=%s",
+                (crear_hash(contrasena), resultado['ID_User'], resultado['Contrasena'])
+            )
+            conexion.commit()
+        resultado.pop('Contrasena', None)
+        return resultado
 
     finally:
 
@@ -426,25 +421,17 @@ else:
             )
 
     elif seleccion == "Usuarios y roles":
-
         if rol_normalizado == "regente-administrador":
-
-            st.title(
-                "Gestión de usuarios y roles"
-            )
-
-            st.write(
-                "Administración de cuentas "
-                "y permisos."
-            )
+            mostrar_usuarios()
+        else:
+            st.error("No tienes permiso para acceder a este módulo.")
 
     # --------------------------------------
     # MÓDULOS PENDIENTES
     # --------------------------------------
 
     if seleccion in [
-        "Reseñas",
-        "Usuarios y roles"
+        "Reseñas"
     ]:
 
         st.divider()
