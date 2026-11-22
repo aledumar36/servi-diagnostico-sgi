@@ -38,7 +38,7 @@ def mostrar_boletas():
 
         try:
             pacientes = consultar_datos("""
-                SELECT ID_Paciente, Nombre_Completo
+                SELECT ID_Paciente, Nombre_Completo, Fecha_Nacimiento
                 FROM Paciente
                 ORDER BY Nombre_Completo
             """)
@@ -67,9 +67,20 @@ def mostrar_boletas():
 
         else:
 
+            def etiqueta_paciente(p):
+                nacimiento = p.get("Fecha_Nacimiento")
+                fecha_texto = (
+                    nacimiento.strftime("%d/%m/%Y")
+                    if hasattr(nacimiento, "strftime")
+                    else str(nacimiento or "No registrada")
+                )
+                return (
+                    f"P-{p['ID_Paciente']:06d} | "
+                    f"{p['Nombre_Completo']} | Nac.: {fecha_texto}"
+                )
+
             opciones_pacientes = {
-                f"{p['Nombre_Completo']} (ID: {p['ID_Paciente']})":
-                p["ID_Paciente"]
+                etiqueta_paciente(p): p["ID_Paciente"]
                 for p in pacientes
             }
 
@@ -349,7 +360,9 @@ def mostrar_boletas():
                 SELECT
                     B.ID_Boleta,
                     B.Fecha_Solicitud,
+                    B.ID_Paciente,
                     P.Nombre_Completo AS Paciente,
+                    P.Fecha_Nacimiento,
 
                     COALESCE(
                         CONCAT(M.Nombre, ' ', M.Apellido),
@@ -372,7 +385,9 @@ def mostrar_boletas():
                 GROUP BY
                     B.ID_Boleta,
                     B.Fecha_Solicitud,
+                    B.ID_Paciente,
                     P.Nombre_Completo,
+                    P.Fecha_Nacimiento,
                     M.Nombre,
                     M.Apellido
 
@@ -382,16 +397,37 @@ def mostrar_boletas():
 
             if boletas:
 
+                def fecha_nacimiento_texto(valor):
+                    return (
+                        valor.strftime("%d/%m/%Y")
+                        if hasattr(valor, "strftime")
+                        else str(valor or "No registrada")
+                    )
+
+                boletas_vista = []
+                for b in boletas:
+                    boletas_vista.append({
+                        "Boleta": b["ID_Boleta"],
+                        "Fecha de solicitud": b["Fecha_Solicitud"],
+                        "Código paciente": f"P-{b['ID_Paciente']:06d}",
+                        "Paciente": b["Paciente"],
+                        "Fecha de nacimiento": fecha_nacimiento_texto(b["Fecha_Nacimiento"]),
+                        "Médico": b["Medico"],
+                        "Cantidad de exámenes": b["Cantidad_Examenes"],
+                    })
+
                 st.dataframe(
-                    boletas,
+                    boletas_vista,
                     use_container_width=True,
                     hide_index=True
                 )
 
                 opciones_boletas = {
                     (
-                        f"Boleta #{b['ID_Boleta']} - "
-                        f"{b['Paciente']}"
+                        f"Boleta #{b['ID_Boleta']} | "
+                        f"P-{b['ID_Paciente']:06d} | "
+                        f"{b['Paciente']} | "
+                        f"Nac.: {fecha_nacimiento_texto(b['Fecha_Nacimiento'])}"
                     ): b["ID_Boleta"]
                     for b in boletas
                 }
