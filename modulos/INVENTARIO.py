@@ -107,9 +107,9 @@ def mostrar_inventario():
             cursor = conexion.cursor(dictionary=True)
 
             cursor.execute("""
-                SELECT ID_Proveedor, Nombre
+                SELECT ID_Proveedor, Nombre_Completo
                 FROM Proveedor
-                ORDER BY Nombre
+                ORDER BY Nombre_Completo
             """)
 
             proveedores = cursor.fetchall()
@@ -123,7 +123,7 @@ def mostrar_inventario():
             else:
 
                 opciones_proveedores = {
-                    f"{p['ID_Proveedor']} - {p['Nombre']}":
+                    f"{p['ID_Proveedor']} - {p['Nombre_Completo']}":
                     p["ID_Proveedor"]
                     for p in proveedores
                 }
