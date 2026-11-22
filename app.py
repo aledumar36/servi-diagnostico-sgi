@@ -10,6 +10,7 @@ from modulos.EXPEDIENTES import mostrar_expedientes
 from modulos.INVENTARIO import mostrar_inventario
 from modulos.PROVEEDORES import mostrar_proveedores
 from modulos.USUARIOS import mostrar_usuarios
+from modulos.PORTAL_PACIENTE import mostrar_portal_paciente
 
 # ==========================================
 # CONFIGURACIÓN DE LA APLICACIÓN
@@ -191,7 +192,7 @@ else:
     elif rol_normalizado == "paciente":
 
         opciones = [
-            "Inicio"
+            "Mi portal"
         ]
 
         descripcion_panel = "Panel del paciente"
@@ -248,7 +249,11 @@ else:
     # VISTAS DE LOS MÓDULOS
     # --------------------------------------
 
-    if seleccion == "Inicio":
+    if seleccion == "Mi portal":
+
+        mostrar_portal_paciente()
+
+    elif seleccion == "Inicio":
 
         st.title("Panel principal")
 
