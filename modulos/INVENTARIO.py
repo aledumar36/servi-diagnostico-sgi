@@ -29,6 +29,8 @@ def mostrar_inventario():
 
         st.subheader("Existencias disponibles")
 
+        inventario = []
+
         conexion = None
         cursor = None
 
@@ -65,14 +67,14 @@ def mostrar_inventario():
 
                 for item in inventario:
 
-                    if item["Cantidad"] <= item["Stock_Minimo"]:
-                        st.warning(
-                            f"Stock bajo: {item['Producto']}"
-                        )
+                    if item["Cantidad"] <= 0:
+                        st.error(f"Sin existencias: {item['Producto']}")
+                    elif item["Cantidad"] <= item["Stock_Minimo"]:
+                        st.warning(f"Stock bajo: {item['Producto']}")
 
                     vencimiento = item["Fecha_Vencimiento"]
 
-                    if vencimiento:
+                    if vencimiento and item["Cantidad"] > 0:
 
                         if vencimiento < date.today():
                             st.error(
@@ -95,121 +97,121 @@ def mostrar_inventario():
                 conexion.close()
 
 
-            # ==========================================
-            # ALERTAS DE VENCIMIENTO
-            # ==========================================
+        # ==========================================
+        # ALERTAS DE VENCIMIENTO
+        # ==========================================
 
-            st.subheader("Alertas de vencimiento")
+        st.subheader("Alertas de vencimiento")
 
-            hoy = date.today()
-            limite = hoy + timedelta(days=30)
+        hoy = date.today()
+        limite = hoy + timedelta(days=30)
 
-            vencidos = []
-            proximos = []
-            vigentes = []
-            sin_vencimiento = []
+        vencidos = []
+        proximos = []
+        vigentes = []
+        sin_vencimiento = []
 
-            for producto in inventario:
+        for producto in inventario:
 
-                fecha = producto["Fecha_Vencimiento"]
+            fecha = producto["Fecha_Vencimiento"]
 
-                # No alertar sobre lotes agotados
-                if float(producto["Cantidad"]) <= 0:
-                    continue
+            # No alertar sobre lotes agotados
+            if float(producto["Cantidad"]) <= 0:
+                continue
 
-                if fecha is None:
+            if fecha is None:
 
-                    sin_vencimiento.append(producto)
+                sin_vencimiento.append(producto)
+
+            else:
+
+                # MySQL normalmente devuelve DATE
+                # como objeto date de Python.
+                if isinstance(fecha, str):
+                    fecha = date.fromisoformat(fecha)
+
+                if fecha < hoy:
+
+                    vencidos.append(producto)
+
+                elif fecha <= limite:
+
+                    proximos.append(producto)
 
                 else:
 
-                    # MySQL normalmente devuelve DATE
-                    # como objeto date de Python.
-                    if isinstance(fecha, str):
-                        fecha = date.fromisoformat(fecha)
+                    vigentes.append(producto)
 
-                    if fecha < hoy:
+        col1, col2, col3, col4 = st.columns(4)
 
-                        vencidos.append(producto)
+        col1.metric(
+            "Vencidos",
+            len(vencidos)
+        )
 
-                    elif fecha <= limite:
+        col2.metric(
+            "Próximos a vencer",
+            len(proximos)
+        )
 
-                        proximos.append(producto)
+        col3.metric(
+            "Vigentes",
+            len(vigentes)
+        )
 
-                    else:
+        col4.metric(
+            "Sin vencimiento",
+            len(sin_vencimiento)
+        )
 
-                        vigentes.append(producto)
+        # Productos vencidos
+        if vencidos:
 
-            col1, col2, col3, col4 = st.columns(4)
-
-            col1.metric(
-                "Vencidos",
-                len(vencidos)
+            st.error(
+                "Hay productos vencidos "
+                "con existencias disponibles."
             )
 
-            col2.metric(
-                "Próximos a vencer",
-                len(proximos)
-            )
+            for producto in vencidos:
 
-            col3.metric(
-                "Vigentes",
-                len(vigentes)
-            )
-
-            col4.metric(
-                "Sin vencimiento",
-                len(sin_vencimiento)
-            )
-
-            # Productos vencidos
-            if vencidos:
-
-                st.error(
-                    "Hay productos vencidos "
-                    "con existencias disponibles."
+                st.write(
+                    f"🔴 {producto['Producto']} "
+                    f"— Venció el "
+                    f"{producto['Fecha_Vencimiento']} "
+                    f"— Cantidad: {producto['Cantidad']}"
                 )
 
-                for producto in vencidos:
+        # Productos próximos a vencer
+        if proximos:
 
-                    st.write(
-                        f"🔴 {producto['Producto']} "
-                        f"— Venció el "
-                        f"{producto['Fecha_Vencimiento']} "
-                        f"— Cantidad: {producto['Cantidad']}"
-                    )
+            st.warning(
+                "Hay productos que vencen "
+                "en los próximos 30 días."
+            )
 
-            # Productos próximos a vencer
-            if proximos:
+            for producto in proximos:
 
-                st.warning(
-                    "Hay productos que vencen "
-                    "en los próximos 30 días."
+                fecha = producto["Fecha_Vencimiento"]
+
+                if isinstance(fecha, str):
+                    fecha = date.fromisoformat(fecha)
+
+                dias = (fecha - hoy).days
+
+                st.write(
+                    f"🟠 {producto['Producto']} "
+                    f"— Vence el {fecha} "
+                    f"— Faltan {dias} días "
+                    f"— Cantidad: {producto['Cantidad']}"
                 )
 
-                for producto in proximos:
+        if not vencidos and not proximos:
 
-                    fecha = producto["Fecha_Vencimiento"]
+            st.success(
+                "No hay productos vencidos "
+                "ni próximos a vencer."
+            )
 
-                    if isinstance(fecha, str):
-                        fecha = date.fromisoformat(fecha)
-
-                    dias = (fecha - hoy).days
-
-                    st.write(
-                        f"🟠 {producto['Producto']} "
-                        f"— Vence el {fecha} "
-                        f"— Faltan {dias} días "
-                        f"— Cantidad: {producto['Cantidad']}"
-                    )
-
-            if not vencidos and not proximos:
-
-                st.success(
-                    "No hay productos vencidos "
-                    "ni próximos a vencer."
-                )
-    
     # ==========================================
     # REGISTRAR PRODUCTO
     # ==========================================
@@ -217,6 +219,10 @@ def mostrar_inventario():
     with tab2:
 
         st.subheader("Registrar nuevo producto")
+        st.write(
+            "Puede registrar productos existentes aunque no conozca "
+            "su proveedor de origen."
+        )
 
         conexion = None
         cursor = None
@@ -233,102 +239,70 @@ def mostrar_inventario():
 
             proveedores = cursor.fetchall()
 
-            if not proveedores:
+            opciones_proveedores = {
+                "Sin proveedor identificado": None
+            }
 
-                st.warning(
-                    "Primero debe registrar un proveedor."
+            for p in proveedores:
+                etiqueta = f"{p['ID_Proveedor']} - {p['Nombre_Completo']}"
+                opciones_proveedores[etiqueta] = p["ID_Proveedor"]
+
+            with st.form("form_producto"):
+
+                nombre = st.text_input("Nombre del producto *")
+                marca = st.text_input("Marca")
+                descripcion = st.text_area("Descripción")
+
+                area = st.selectbox(
+                    "Área",
+                    [
+                        "Hematología",
+                        "Química sanguínea",
+                        "Uroanálisis",
+                        "Coprología",
+                        "Microbiología",
+                        "Insumos generales",
+                        "Otros"
+                    ]
                 )
 
-            else:
+                proveedor = st.selectbox(
+                    "Proveedor (opcional)",
+                    list(opciones_proveedores.keys())
+                )
 
-                opciones_proveedores = {
-                    f"{p['ID_Proveedor']} - {p['Nombre_Completo']}":
-                    p["ID_Proveedor"]
-                    for p in proveedores
-                }
+                guardar = st.form_submit_button("Guardar producto")
 
-                with st.form("form_producto"):
-
-                    nombre = st.text_input(
-                        "Nombre del producto *"
+            if guardar:
+                if not nombre.strip():
+                    st.warning("Ingrese el nombre del producto.")
+                else:
+                    cursor.execute("""
+                        INSERT INTO Producto
+                        (ID_Proveedor, Nombre, Marca, Descripcion, Area)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (
+                        opciones_proveedores[proveedor],
+                        nombre.strip(),
+                        marca.strip(),
+                        descripcion.strip(),
+                        area
+                    ))
+                    conexion.commit()
+                    st.success("Producto registrado correctamente.")
+                    st.info(
+                        "El producto quedó en el catálogo. "
+                        "Para agregar existencias, use 'Registrar entrada'."
                     )
-
-                    marca = st.text_input("Marca")
-
-                    descripcion = st.text_area(
-                        "Descripción"
-                    )
-
-                    area = st.selectbox(
-                        "Área",
-                        [
-                            "Hematología",
-                            "Química sanguínea",
-                            "Uroanálisis",
-                            "Coprología",
-                            "Microbiología",
-                            "Insumos generales",
-                            "Otros"
-                        ]
-                    )
-
-                    proveedor = st.selectbox(
-                        "Proveedor",
-                        list(opciones_proveedores.keys())
-                    )
-
-                    guardar = st.form_submit_button(
-                        "Guardar producto"
-                    )
-
-                    if guardar:
-
-                        if not nombre.strip():
-
-                            st.warning(
-                                "Ingrese el nombre del producto."
-                            )
-
-                        else:
-
-                            cursor.execute("""
-                                INSERT INTO Producto
-                                (
-                                    ID_Proveedor,
-                                    Nombre,
-                                    Marca,
-                                    Descripcion,
-                                    Area
-                                )
-                                VALUES (%s, %s, %s, %s, %s)
-                            """, (
-                                opciones_proveedores[proveedor],
-                                nombre.strip(),
-                                marca.strip(),
-                                descripcion.strip(),
-                                area
-                            ))
-
-                            conexion.commit()
-
-                            st.success(
-                                "Producto registrado correctamente."
-                            )
 
         except Exception as e:
-
             if conexion:
                 conexion.rollback()
-
-            st.error(
-                f"Error al registrar producto: {e}"
-            )
+            st.error(f"Error al registrar producto: {e}")
 
         finally:
-
             if cursor:
                 cursor.close()
-
             if conexion:
                 conexion.close()
 
