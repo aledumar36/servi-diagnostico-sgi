@@ -49,8 +49,12 @@ def mostrar_compras():
                 proveedor = st.selectbox('Proveedor *', list(opciones_proveedor))
                 concepto = st.text_input('Concepto (opcional)', max_chars=255)
                 fecha_pedido = st.date_input('Fecha del pedido', value=date.today())
-                tiene_entrega = st.checkbox('Indicar fecha estimada de entrega')
-                fecha_entrega = st.date_input('Fecha estimada de entrega', value=date.today()) if tiene_entrega else None
+                fecha_entrega = st.date_input(
+                    'Fecha estimada de entrega (opcional)',
+                    value=None,
+                    min_value=fecha_pedido,
+                    format='DD/MM/YYYY'
+                    )
                 lineas = []
                 for i in range(int(cantidad_lineas)):
                     st.markdown(f'**Producto {i+1}**')
