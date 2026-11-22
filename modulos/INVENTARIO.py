@@ -11,12 +11,14 @@ def mostrar_inventario():
         "y movimientos de productos."
     )
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Consultar inventario",
         "Registrar producto",
         "Registrar entrada",
         "Registrar salida",
-        "Editar inventario"
+        "Editar inventario",
+        "Historial de movimientos"
     ])
 
     # ==========================================
@@ -953,3 +955,109 @@ def mostrar_inventario():
                 if conexion:
                     conexion.close()
 
+
+    # ==========================================
+    # HISTORIAL DE MOVIMIENTOS
+    # ==========================================
+
+    with tab6:
+
+        st.subheader("Historial de movimientos")
+
+        st.write(
+            "Consulta de entradas, salidas y ajustes "
+            "realizados en el inventario."
+        )
+
+        conexion = None
+        cursor = None
+
+        try:
+
+            conexion = obtener_conexion()
+            cursor = conexion.cursor(dictionary=True)
+
+            cursor.execute("""
+                SELECT
+                    M.ID_Movimiento AS ID,
+                    P.Nombre AS Producto,
+                    P.Marca,
+                    M.Tipo_Movimiento AS Movimiento,
+                    M.Cantidad,
+                    M.Fecha_Movimiento AS Fecha,
+                    CONCAT(
+                        U.Nombre, ' ', U.Apellido
+                    ) AS Usuario,
+                    M.Motivo,
+                    M.ID_Inventario
+                FROM Movimiento_Inventario M
+                INNER JOIN Inventario I
+                    ON M.ID_Inventario = I.ID_Inventario
+                INNER JOIN Producto P
+                    ON I.ID_Producto = P.ID_Producto
+                INNER JOIN Usuario_Sistema U
+                    ON M.ID_User = U.ID_User
+                ORDER BY
+                    M.Fecha_Movimiento DESC,
+                    M.ID_Movimiento DESC
+            """)
+
+            movimientos = cursor.fetchall()
+
+            if not movimientos:
+
+                st.info(
+                    "Todavía no hay movimientos registrados."
+                )
+
+            else:
+
+                st.success(
+                    f"Total de movimientos registrados: "
+                    f"{len(movimientos)}"
+                )
+
+                tipos = [
+                    "Todos",
+                    "Entrada",
+                    "Salida",
+                    "Ajuste"
+                ]
+
+                filtro = st.selectbox(
+                    "Filtrar por tipo de movimiento",
+                    tipos
+                )
+
+                if filtro == "Todos":
+                    filtrados = movimientos
+                else:
+                    filtrados = [
+                        m for m in movimientos
+                        if m["Movimiento"] == filtro
+                    ]
+
+                st.dataframe(
+                    filtrados,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                st.caption(
+                    "Los movimientos se muestran desde "
+                    "el más reciente hasta el más antiguo."
+                )
+
+        except Exception as e:
+
+            st.error(
+                f"Error al consultar movimientos: {e}"
+            )
+
+        finally:
+
+            if cursor:
+                cursor.close()
+
+            if conexion:
+                conexion.close()
