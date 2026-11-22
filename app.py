@@ -406,17 +406,11 @@ else:
         if rol_normalizado == "regente-administrador":
             mostrar_inventario()
 
+
     elif seleccion == "Compras y proveedores":
         if rol_normalizado == "regente-administrador":
             mostrar_proveedores()
-            st.title(
-                "Compras y proveedores"
-            )
 
-            st.write(
-                "Gestión de proveedores "
-                "y órdenes de compra."
-            )
 
     elif seleccion == "Reseñas":
 
@@ -449,7 +443,6 @@ else:
     # --------------------------------------
 
     if seleccion in [
-        "Compras y proveedores",
         "Reseñas",
         "Usuarios y roles"
     ]:
