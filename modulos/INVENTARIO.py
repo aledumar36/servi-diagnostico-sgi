@@ -16,7 +16,6 @@ def mostrar_inventario():
         "Registrar producto",
         "Registrar entrada",
         "Registrar salida"
-        "Registrar proveedor"
     ])
 
     # ==========================================
@@ -239,91 +238,4 @@ def mostrar_inventario():
             "Aquí registraremos las salidas "
             "de productos del inventario."
         )
-        
-    # ==========================================
-    # REGISTRAR PROVEEDOR
-    # ==========================================
-
-    with tab5:
-
-        st.subheader("Registrar nuevo proveedor")
-
-        with st.form("form_proveedor"):
-
-            nombre_proveedor = st.text_input(
-                "Nombre completo del proveedor *"
-            )
-
-            catalogo = st.text_area(
-                "Catálogo de productos"
-            )
-
-            telefono = st.text_input(
-                "Teléfono"
-            )
-
-            correo = st.text_input(
-                "Correo electrónico"
-            )
-
-            guardar_proveedor = st.form_submit_button(
-                "Guardar proveedor"
-            )
-
-        if guardar_proveedor:
-
-            if not nombre_proveedor.strip():
-
-                st.warning(
-                    "Debe ingresar el nombre del proveedor."
-                )
-
-            else:
-
-                conexion = None
-                cursor = None
-
-                try:
-
-                    conexion = obtener_conexion()
-                    cursor = conexion.cursor()
-
-                    cursor.execute("""
-                        INSERT INTO Proveedor
-                        (
-                            Nombre_Completo,
-                            Catalogo,
-                            Telefono,
-                            Correo
-                        )
-                        VALUES (%s, %s, %s, %s)
-                    """, (
-                        nombre_proveedor.strip(),
-                        catalogo.strip(),
-                        telefono.strip(),
-                        correo.strip()
-                    ))
-
-                    conexion.commit()
-
-                    st.success(
-                        "Proveedor registrado correctamente."
-                    )
-
-                except Exception as e:
-
-                    if conexion:
-                        conexion.rollback()
-
-                    st.error(
-                        f"Error al registrar proveedor: {e}"
-                    )
-
-                finally:
-
-                    if cursor:
-                        cursor.close()
-
-                    if conexion:
-                        conexion.close()
-
+      
