@@ -1,6 +1,7 @@
 from pathlib import Path
 import streamlit as st
 from config.conexion import obtener_conexion
+from modulos.RESENAS import mostrar_resenas_paciente
 
 
 def _consultar(sql, parametros=()):
@@ -33,8 +34,8 @@ def mostrar_portal_paciente():
             st.error('No se encontró el registro del paciente vinculado a tu cuenta.')
             return
         paciente = pacientes[0]
-        pestaña_datos, pestaña_citas, pestaña_resultados = st.tabs(
-            ['Mis datos', 'Mis citas', 'Mis exámenes y resultados'])
+        pestaña_datos, pestaña_citas, pestaña_resenas, pestaña_resultados = st.tabs(
+            ['Mis datos', 'Mis citas', 'Mis reseñas', 'Mis exámenes y resultados'])
 
         with pestaña_datos:
             st.write(f"**Nombre:** {paciente['Nombre_Completo']}")
@@ -54,6 +55,9 @@ def mostrar_portal_paciente():
                                'Concepto': c['Concepto'] or '',
                                'Médico': f"{c['Nombre_Medico'] or ''} {c['Apellido_Medico'] or ''}".strip()}
                               for c in citas], use_container_width=True, hide_index=True)
+
+        with pestaña_resenas:
+            mostrar_resenas_paciente()
 
         with pestaña_resultados:
             examenes = _consultar('''SELECT E.ID_Examen, E.ID_Boleta, E.Estado,
