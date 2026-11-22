@@ -9,6 +9,7 @@ from modulos.RESULTADOS import mostrar_resultados
 from modulos.EXPEDIENTES import mostrar_expedientes
 from modulos.INVENTARIO import mostrar_inventario
 from modulos.PROVEEDORES import mostrar_proveedores
+from modulos.COMPRAS import mostrar_compras
 from modulos.USUARIOS import mostrar_usuarios
 from modulos.PORTAL_PACIENTE import mostrar_portal_paciente
 
@@ -409,7 +410,11 @@ else:
 
     elif seleccion == "Compras y proveedores":
         if rol_normalizado == "regente-administrador":
-            mostrar_proveedores()
+            tab_proveedores, tab_compras = st.tabs(["Proveedores", "Órdenes de compra"])
+            with tab_proveedores:
+                mostrar_proveedores()
+            with tab_compras:
+                mostrar_compras()
 
 
     elif seleccion == "Reseñas":
